@@ -1,0 +1,48 @@
+{
+  "name": "abxk-bot-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "bot": "concurrently \"next dev\" \"tsx scripts/botEngine.ts\" --names \"DASHBOARD,BOT\" --prefix-colors \"cyan,yellow\"",
+    "bot:paper": "BOT_MODE=paper concurrently \"next dev\" \"tsx scripts/botEngine.ts\" --names \"DASHBOARD,BOT\" --prefix-colors \"cyan,yellow\"",
+    "bot:live": "BOT_MODE=live concurrently \"next dev\" \"tsx scripts/botEngine.ts\" --names \"DASHBOARD,BOT\" --prefix-colors \"cyan,yellow\"",
+    "bot:mirror": "BOT_MODE=mirror concurrently \"next dev\" \"tsx scripts/botEngine.ts\" --names \"DASHBOARD,BOT\" --prefix-colors \"cyan,yellow\""
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "^147.0.2",
+    "concurrently": "^9.2.1",
+    "date-fns": "3.6.0",
+    "google-trends-api": "^4.9.2",
+    "jspdf": "2.5.2",
+    "jspdf-autotable": "3.8.4",
+    "lightweight-charts": "^5.2.0",
+    "next": "14.2.5",
+    "node-cron": "3.0.3",
+    "puppeteer-core": "^24.42.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-hook-form": "7.55.0",
+    "recharts": "2.12.7",
+    "tsx": "^4.21.0",
+    "ws": "8.18.0",
+    "zustand": "4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.15",
+    "@types/node-cron": "^3.0.11",
+    "@types/react": "18.3.5",
+    "@types/react-dom": "18.3.0",
+    "@types/ws": "^8.18.1",
+    "autoprefixer": "10.4.20",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.5",
+    "postcss": "8.4.41",
+    "tailwindcss": "3.4.10",
+    "typescript": "5.5.4"
+  }
+}
