@@ -45,6 +45,14 @@ async function setCommand(req: Request, patch: Record<string, unknown>) {
   }).catch(() => undefined)
 }
 
+async function setScalping3Command(req: Request, patch: Record<string, unknown>) {
+  await fetch(new URL("/api/scalping3/command", req.url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch)
+  }).catch(() => undefined)
+}
+
 function consumePendingConfirm(chatId: string): PendingConfirm | undefined {
   const cur = g.__abxkTelegramPendingConfirm
   if (!cur) return undefined
@@ -120,6 +128,12 @@ export async function POST(req: Request) {
   if (text === "/skip") {
     await setCommand(req, { skipOnce: true })
     await sendTelegram("⏭ Next trade will be skipped.")
+    return NextResponse.json({ ok: true })
+  }
+
+  if (text === "/skip_s3") {
+    await setScalping3Command(req, { skipOnce: true })
+    await sendTelegram("⏭ Next Scalping 3 trade will be skipped.")
     return NextResponse.json({ ok: true })
   }
 
@@ -233,4 +247,3 @@ Equity: $${Number(s.equity ?? 0).toFixed(2)}`
   )
   return NextResponse.json({ ok: true })
 }
-

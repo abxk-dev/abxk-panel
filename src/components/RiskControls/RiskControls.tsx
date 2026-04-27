@@ -24,6 +24,21 @@ export function RiskControls() {
             />
           </Field>
 
+          <Field label="Trades per Day (Max)">
+            <input
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+              type="number"
+              value={settings.maxTradesPerDay}
+              min={1}
+              max={100}
+              step={1}
+              onChange={(e) => {
+                const n = Math.floor(Number(e.target.value))
+                setSettings({ maxTradesPerDay: Number.isFinite(n) ? Math.max(1, Math.min(100, n)) : 1 })
+              }}
+            />
+          </Field>
+
           <Field label="Levels">
             <input
               className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
@@ -229,4 +244,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   )
 }
-

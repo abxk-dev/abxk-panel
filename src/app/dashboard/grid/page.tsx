@@ -127,6 +127,7 @@ export default function GridPage() {
   const [state, setState] = useState<GridState | null>(null)
   const [lastPrice, setLastPrice] = useState<number>(0)
   const [error, setError] = useState<string>("")
+  const [startLoading, setStartLoading] = useState(false)
 
   const config = useMemo((): GridConfig => {
     return {
@@ -150,6 +151,8 @@ export default function GridPage() {
 
   const start = async () => {
     setError("")
+    setStartLoading(true)
+    try {
     const upper = config.upperPrice
     const lower = config.lowerPrice
     if (!Number.isFinite(upper) || !Number.isFinite(lower) || upper <= lower) {
@@ -172,6 +175,9 @@ export default function GridPage() {
     const next = initializeGridState(config, price)
     setState(next)
     setRunning(true)
+    } finally {
+      setStartLoading(false)
+    }
   }
 
   const stop = () => {
@@ -313,8 +319,9 @@ export default function GridPage() {
                   running ? "bg-white/5 text-white/60 hover:text-white" : "bg-[#00FF88]/20 text-[#00FF88]"
                 }`}
                 onClick={() => void start()}
+                disabled={running || startLoading}
               >
-                Start Grid
+                {startLoading ? "Starting…" : "Start Grid"}
               </button>
               <button
                 type="button"
@@ -427,4 +434,3 @@ export default function GridPage() {
     </div>
   )
 }
-

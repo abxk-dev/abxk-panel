@@ -28,9 +28,12 @@ export default function RiskManagerPage() {
   const [botSnap, setBotSnap] = useState<any>(null)
   const [scalpState, setScalpState] = useState<any>(null)
   const [error, setError] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const refresh = async () => {
     setError("")
+    setRefreshing(true)
     try {
       const [r1, r2, r3] = await Promise.all([
         fetch("/api/recovery/state", { cache: "no-store" }).then((r) => r.json()),
@@ -43,6 +46,9 @@ export default function RiskManagerPage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Refresh failed"
       setError(msg)
+    } finally {
+      setRefreshing(false)
+      setLoading(false)
     }
   }
 
@@ -115,33 +121,34 @@ export default function RiskManagerPage() {
             <div className="rounded-lg border border-white/10 bg-black/30 p-3">
               <div className="text-xs text-white/50">Overall risk</div>
               <div className={`text-lg font-semibold ${overallRisk === "HIGH" ? "text-red-400" : overallRisk === "MEDIUM" ? "text-yellow-300" : "text-[#00FF88]"}`}>
-                {overallRisk}
+                {loading ? "Loading…" : overallRisk}
               </div>
             </div>
             <button
               type="button"
               className="w-full rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 hover:text-white"
+              disabled={refreshing}
               onClick={() => void refresh()}
             >
-              Refresh Now
+              {refreshing ? "Refreshing…" : "Refresh Now"}
             </button>
             {error ? <div className="text-xs text-red-400">{error}</div> : null}
           </Section>
 
           <Section title="EXPOSURE MAP">
             <div className="rounded-lg border border-white/10 bg-black/30 p-3 text-sm text-white/80">
-              <div>Open positions: {exposure.count}</div>
-              <div className="mt-1">Notional (est): {fmtUsd(exposure.notional)}</div>
-              <div className="mt-1">Margin in use (est): {fmtUsd(exposure.margin)}</div>
-              <div className="mt-1">Max leverage used: {Number.isFinite(exposure.maxLev) ? `${exposure.maxLev}x` : "—"}</div>
+              <div>Open positions: {loading ? "—" : exposure.count}</div>
+              <div className="mt-1">Notional (est): {loading ? "—" : fmtUsd(exposure.notional)}</div>
+              <div className="mt-1">Margin in use (est): {loading ? "—" : fmtUsd(exposure.margin)}</div>
+              <div className="mt-1">Max leverage used: {loading ? "—" : Number.isFinite(exposure.maxLev) ? `${exposure.maxLev}x` : "—"}</div>
             </div>
           </Section>
 
           <Section title="CIRCUIT BREAKERS">
             <div className="rounded-lg border border-white/10 bg-black/30 p-3 text-sm text-white/80">
-              <div>Daily trade count: {recovery?.dailyTradeCount ?? "—"}</div>
-              <div className="mt-1">Daily PnL: {fmtUsd(recovery?.dailyPnl ?? botSnap?.dailyPnlUsd)}</div>
-              <div className="mt-1">Consecutive losses: {recovery?.consecutiveLosses ?? "—"}</div>
+              <div>Daily trade count: {loading ? "—" : recovery?.dailyTradeCount ?? "—"}</div>
+              <div className="mt-1">Daily PnL: {loading ? "—" : fmtUsd(recovery?.dailyPnl ?? botSnap?.dailyPnlUsd)}</div>
+              <div className="mt-1">Consecutive losses: {loading ? "—" : recovery?.consecutiveLosses ?? "—"}</div>
             </div>
           </Section>
         </div>
@@ -197,4 +204,3 @@ export default function RiskManagerPage() {
     </div>
   )
 }
-

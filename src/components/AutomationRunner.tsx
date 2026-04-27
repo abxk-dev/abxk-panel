@@ -1,7 +1,7 @@
 "use client"
 
 import { useAutomation } from "@/lib/useAutomation"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useBotStore } from "@/store/botStore"
 import { generateCompoundingPlan, getActiveLevel, getProgress } from "@/lib/compounding"
 
@@ -9,9 +9,15 @@ export function AutomationRunner() {
   useAutomation()
   const setPaused = useBotStore((s) => s.setPaused)
   const resetProgress = useBotStore((s) => s.resetProgress)
+  const recoverLockRef = useRef(false)
+  const tickLockRef = useRef(false)
+  const drLockRef = useRef(false)
 
   useEffect(() => {
     const maybeRecover = async () => {
+      if (recoverLockRef.current) return
+      recoverLockRef.current = true
+      try {
       const s = useBotStore.getState()
       if (!s.settings.features.disasterRecovery) return
       const startedAt = Date.now()
@@ -81,6 +87,9 @@ Status: RESUMED NORMAL OPERATION`
           body: JSON.stringify({ message: msg })
         }).catch(() => undefined)
         void issues
+      }
+      } finally {
+        recoverLockRef.current = false
       }
     }
 
@@ -524,6 +533,9 @@ ${authOk ? "✅" : "⚠️"} BingX Auth: ${authOk ? "OK" : "CHECK KEYS"}
     }
 
     const tick = async () => {
+      if (tickLockRef.current) return
+      tickLockRef.current = true
+      try {
       const now = Date.now()
       const d = new Date(now)
       const dayKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
@@ -570,15 +582,26 @@ Time: ${formatUtcDdMmYyyyHhMm(now)}`
       }).catch(() => undefined)
       await pollCommand().catch(() => undefined)
       await maybeSendDailyReport().catch(() => undefined)
+      } finally {
+        tickLockRef.current = false
+      }
+    }
+
+    const drTick = async () => {
+      if (drLockRef.current) return
+      drLockRef.current = true
+      try {
+        await postRecoverySnapshot().catch(() => undefined)
+        await useBotStore.getState().checkLiquidationDangerNow().catch(() => undefined)
+      } finally {
+        drLockRef.current = false
+      }
     }
 
     void maybeRecover().catch(() => undefined)
     void tick()
     const timer = window.setInterval(() => void tick(), 60_000)
-    const drTimer = window.setInterval(() => {
-      void postRecoverySnapshot().catch(() => undefined)
-      void useBotStore.getState().checkLiquidationDangerNow().catch(() => undefined)
-    }, 30_000)
+    const drTimer = window.setInterval(() => void drTick(), 30_000)
     return () => {
       window.clearInterval(timer)
       window.clearInterval(drTimer)

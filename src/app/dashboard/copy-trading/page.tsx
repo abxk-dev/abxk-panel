@@ -96,6 +96,7 @@ export default function CopyTradingPage() {
   const [newUid, setNewUid] = useState("")
   const [savedMsg, setSavedMsg] = useState("")
   const [syncStatus, setSyncStatus] = useState<Record<string, { ok: boolean; count: number; error?: string }>>({})
+  const [syncLoading, setSyncLoading] = useState(false)
 
   useEffect(() => {
     const s = readStored()
@@ -139,25 +140,30 @@ export default function CopyTradingPage() {
   }
 
   const syncNow = async () => {
-    const out: Record<string, { ok: boolean; count: number; error?: string }> = {}
-    for (const t of settings.traders.filter((x) => x.active)) {
-      try {
-        const res = await fetch(`https://open-api.bingx.com/openApi/copyTrade/v1/trader/positions?traderId=${encodeURIComponent(t.uid)}`, {
-          cache: "no-store"
-        })
-        const json = await res.json().catch(() => null)
-        const parsed = parseBingxCopyPositionsJson(t.uid, json)
-        if (!parsed.ok) {
-          out[t.uid] = { ok: false, count: 0, error: parsed.error ?? "Parse failed" }
-          continue
+    setSyncLoading(true)
+    try {
+      const out: Record<string, { ok: boolean; count: number; error?: string }> = {}
+      for (const t of settings.traders.filter((x) => x.active)) {
+        try {
+          const res = await fetch(`https://open-api.bingx.com/openApi/copyTrade/v1/trader/positions?traderId=${encodeURIComponent(t.uid)}`, {
+            cache: "no-store"
+          })
+          const json = await res.json().catch(() => null)
+          const parsed = parseBingxCopyPositionsJson(t.uid, json)
+          if (!parsed.ok) {
+            out[t.uid] = { ok: false, count: 0, error: parsed.error ?? "Parse failed" }
+            continue
+          }
+          out[t.uid] = { ok: true, count: parsed.positions.length }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Fetch failed"
+          out[t.uid] = { ok: false, count: 0, error: msg }
         }
-        out[t.uid] = { ok: true, count: parsed.positions.length }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Fetch failed"
-        out[t.uid] = { ok: false, count: 0, error: msg }
       }
+      setSyncStatus(out)
+    } finally {
+      setSyncLoading(false)
     }
-    setSyncStatus(out)
   }
 
   const testTelegramTemplate = async () => {
@@ -274,9 +280,10 @@ export default function CopyTradingPage() {
             <button
               type="button"
               className="w-full rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 hover:text-white"
+              disabled={syncLoading}
               onClick={() => void syncNow()}
             >
-              Sync Now (Test)
+              {syncLoading ? "Syncing…" : "Sync Now (Test)"}
             </button>
             <button
               type="button"
@@ -401,4 +408,3 @@ export default function CopyTradingPage() {
     </div>
   )
 }
-

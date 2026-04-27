@@ -56,6 +56,8 @@ export default function PortfolioPage() {
   const [holdings, setHoldings] = useState<Holding[]>([])
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [error, setError] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const [symbol, setSymbol] = useState("BTC-USDT")
   const [qty, setQty] = useState(0.05)
@@ -77,6 +79,7 @@ export default function PortfolioPage() {
 
   const refresh = async () => {
     setError("")
+    setRefreshing(true)
     try {
       const next: Record<string, number> = {}
       for (const sym of symbols) {
@@ -91,16 +94,18 @@ export default function PortfolioPage() {
       const msg = e instanceof Error ? e.message : "Price refresh failed"
       setError(msg)
     }
-
-    fetch("/api/bot/state", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((j) => setBotSnap(j?.data ?? null))
-      .catch(() => undefined)
-
-    fetch("/api/scalping/state", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((j) => setScalpState(j?.data ?? null))
-      .catch(() => undefined)
+    await Promise.all([
+      fetch("/api/bot/state", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => setBotSnap(j?.data ?? null))
+        .catch(() => undefined),
+      fetch("/api/scalping/state", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => setScalpState(j?.data ?? null))
+        .catch(() => undefined)
+    ])
+    setLoading(false)
+    setRefreshing(false)
   }
 
   const refreshRef = useRef(refresh)
@@ -156,19 +161,23 @@ export default function PortfolioPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-white/10 bg-black/30 p-3">
                 <div className="text-xs text-white/50">Total Value</div>
-                <div className="text-lg font-semibold text-white">${totals.value.toFixed(2)}</div>
+                <div className="text-lg font-semibold text-white">{loading ? "Loading…" : `$${totals.value.toFixed(2)}`}</div>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/30 p-3">
                 <div className="text-xs text-white/50">Invested</div>
-                <div className="text-lg font-semibold text-white">${totals.invested.toFixed(2)}</div>
+                <div className="text-lg font-semibold text-white">{loading ? "Loading…" : `$${totals.invested.toFixed(2)}`}</div>
               </div>
               <div className="rounded-lg border border-white/10 bg-black/30 p-3">
                 <div className="text-xs text-white/50">Total PnL</div>
-                <div className={`text-lg font-semibold ${totals.pnl >= 0 ? "text-[#00FF88]" : "text-red-400"}`}>
-                  {totals.pnl >= 0 ? "+" : ""}
-                  ${totals.pnl.toFixed(2)} ({totals.pnl >= 0 ? "+" : ""}
-                  {totals.pnlPct.toFixed(2)}%)
-                </div>
+                {loading ? (
+                  <div className="text-lg font-semibold text-white">Loading…</div>
+                ) : (
+                  <div className={`text-lg font-semibold ${totals.pnl >= 0 ? "text-[#00FF88]" : "text-red-400"}`}>
+                    {totals.pnl >= 0 ? "+" : ""}
+                    ${totals.pnl.toFixed(2)} ({totals.pnl >= 0 ? "+" : ""}
+                    {totals.pnlPct.toFixed(2)}%)
+                  </div>
+                )}
               </div>
               <div className="rounded-lg border border-white/10 bg-black/30 p-3">
                 <div className="text-xs text-white/50">Holdings</div>
@@ -178,9 +187,10 @@ export default function PortfolioPage() {
             <button
               type="button"
               className="w-full rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 hover:text-white"
+              disabled={refreshing}
               onClick={() => void refresh()}
             >
-              Refresh Now
+              {refreshing ? "Refreshing…" : "Refresh Now"}
             </button>
             {error ? <div className="text-xs text-red-400">{error}</div> : null}
           </Section>
@@ -223,8 +233,14 @@ export default function PortfolioPage() {
 
           <Section title="BOT PERFORMANCE">
             <div className="rounded-lg border border-white/10 bg-black/30 p-3 text-xs text-white/70">
-              <div>Compounding: level {botSnap?.level ?? "—"} • equity ${botSnap?.equity ?? "—"} • dailyPnL ${botSnap?.dailyPnlUsd ?? "—"}</div>
-              <div className="mt-1">Scalping: trades {scalpState?.stats?.trades ?? 0} • winRate {scalpState?.stats?.winRate ?? 0}% • totalPnL {scalpState?.stats?.totalPnl ?? 0}</div>
+              <div>
+                Compounding: level {loading ? "…" : botSnap?.level ?? "—"} • equity ${loading ? "…" : botSnap?.equity ?? "—"} • dailyPnL $
+                {loading ? "…" : botSnap?.dailyPnlUsd ?? "—"}
+              </div>
+              <div className="mt-1">
+                Scalping: trades {loading ? "…" : scalpState?.stats?.trades ?? 0} • winRate {loading ? "…" : scalpState?.stats?.winRate ?? 0}% • totalPnL{" "}
+                {loading ? "…" : scalpState?.stats?.totalPnl ?? 0}
+              </div>
               <div className="mt-1">Grid / Breakout: connect their state sources to include here.</div>
             </div>
           </Section>

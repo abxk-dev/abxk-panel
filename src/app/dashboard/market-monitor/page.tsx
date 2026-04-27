@@ -36,6 +36,7 @@ export default function MarketMonitorPage() {
 
   const health = api?.data?.health
   const monitor = api?.data?.monitor
+  const loading = api === null
 
   const healthLabel = useMemo(() => {
     const s = String(health?.state ?? "UNKNOWN")
@@ -49,9 +50,12 @@ export default function MarketMonitorPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="text-lg font-semibold text-white">Market Monitor</div>
-        <div className="text-sm text-white/60">Regime • Correlation • Health • News • Alerts</div>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-white">Market Monitor</div>
+          <div className="text-sm text-white/60">Regime • Correlation • Health • News • Alerts</div>
+        </div>
+        <div className="text-xs text-white/50">{loading ? "Loading..." : `Updated: ${new Date().toLocaleTimeString()}`}</div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -85,7 +89,7 @@ export default function MarketMonitorPage() {
 
         <div className="rounded-xl border border-white/10 bg-black/20 p-4">
           <div className="text-xs text-white/60">Exchange Health</div>
-          <div className="mt-1 text-lg font-semibold text-white">{healthLabel}</div>
+          <div className={`mt-1 text-lg font-semibold text-white ${loading ? "opacity-60" : ""}`}>{loading ? "Loading..." : healthLabel}</div>
           <div className="mt-2 text-sm text-white/70">
             API latency: {typeof health?.apiLatencyMs === "number" ? `${Math.round(health.apiLatencyMs)}ms` : "—"}
           </div>

@@ -1,4 +1,6 @@
-const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`
+function telegramApiBase(token: string) {
+  return `https://api.telegram.org/bot${token}`
+}
 
 export async function sendTelegram(message: string, parseMode: "HTML" | "MarkdownV2" | "Markdown" = "HTML") {
   const token = process.env.TELEGRAM_BOT_TOKEN
@@ -7,7 +9,7 @@ export async function sendTelegram(message: string, parseMode: "HTML" | "Markdow
     throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID")
   }
 
-  const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
+  const res = await fetch(`${telegramApiBase(token)}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -31,14 +33,14 @@ export async function sendTelegramPhoto(opts: { caption: string; base64Png: stri
   }
 
   const bytes = Buffer.from(opts.base64Png, "base64")
-  const blob = new Blob([bytes], { type: "image/png" })
+  const blob = new Blob([Uint8Array.from(bytes)], { type: "image/png" })
   const form = new FormData()
   form.set("chat_id", chatId)
   form.set("caption", opts.caption)
   form.set("parse_mode", "HTML")
   form.set("photo", blob, "chart.png")
 
-  const res = await fetch(`${TELEGRAM_API}/sendPhoto`, { method: "POST", body: form as any })
+  const res = await fetch(`${telegramApiBase(token)}/sendPhoto`, { method: "POST", body: form as any })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Telegram sendPhoto failed: ${res.status} ${text}`)
@@ -53,14 +55,14 @@ export async function sendTelegramDocument(opts: { caption: string; base64: stri
   }
 
   const bytes = Buffer.from(opts.base64, "base64")
-  const blob = new Blob([bytes], { type: opts.mimeType ?? "application/octet-stream" })
+  const blob = new Blob([Uint8Array.from(bytes)], { type: opts.mimeType ?? "application/octet-stream" })
   const form = new FormData()
   form.set("chat_id", chatId)
   form.set("caption", opts.caption)
   form.set("parse_mode", "HTML")
   form.set("document", blob, opts.filename || "report.pdf")
 
-  const res = await fetch(`${TELEGRAM_API}/sendDocument`, { method: "POST", body: form as any })
+  const res = await fetch(`${telegramApiBase(token)}/sendDocument`, { method: "POST", body: form as any })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Telegram sendDocument failed: ${res.status} ${text}`)

@@ -1,0 +1,83 @@
+{
+  "ok": true,
+  "data": {
+    "updatedAt": 1777320879851,
+    "settings": {
+      "enabled": true,
+      "paused": false,
+      "mode": "paper",
+      "timeframe": "5m",
+      "minSmcScore": 55,
+      "minVolumeRatio": 1.5,
+      "marginPerTrade": 50,
+      "leverage": 20,
+      "minRR": 1.5,
+      "useGlobalTargets": false,
+      "globalSlPct": 0.35,
+      "globalTp1Pct": 0.5,
+      "globalTp2Pct": 0.9,
+      "maxPerDay": 4,
+      "enabledSymbols": [
+        "BTC-USDT",
+        "ETH-USDT",
+        "BNB-USDT",
+        "XRP-USDT",
+        "ADA-USDT",
+        "DOT-USDT",
+        "MATIC-USDT",
+        "LTC-USDT",
+        "LINK-USDT",
+        "UNI-USDT",
+        "ETC-USDT",
+        "TAO-USDT",
+        "COMP-USDT",
+        "BCH-USDT",
+        "XLM-USDT",
+        "ONDO-USDT",
+        "ETHFI-USDT",
+        "SOL-USDT",
+        "DYDX-USDT",
+        "INJ-USDT",
+        "SUI-USDT"
+      ]
+    },
+    "mode": "paper",
+    "openTrades": [],
+    "stats": {
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "winRate": 0,
+      "totalPnl": 0,
+      "allTime": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": 0,
+        "totalPnl": 0
+      }
+    },
+    "paperAccount": {
+      "balance": 250,
+      "totalDeposited": 250,
+      "totalFeesPaid": 0,
+      "totalGrossPnl": 0,
+      "totalNetPnl": 0,
+      "today": {
+        "trades": 0,
+        "gross": 0,
+        "fees": 0,
+        "net": 0
+      }
+    },
+    "lastScan": {
+      "at": 1777320787930,
+      "session": "LONDON_NY_OVERLAP",
+      "scanned": 21,
+      "smcValid": 0,
+      "volumeConfirmed": 0,
+      "reason": "NEW YORK — waiting for 13:43 IST"
+    },
+    "leaderboard": []
+  }
+}

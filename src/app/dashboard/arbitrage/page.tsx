@@ -42,11 +42,13 @@ export default function ArbitragePage() {
   const [error, setError] = useState<string>("")
   const [running, setRunning] = useState(false)
   const [telegramAlerts, setTelegramAlerts] = useState(false)
+  const [scanning, setScanning] = useState(false)
 
   const [fundingThresholdPct, setFundingThresholdPct] = useState(defaultArbitrageThresholds().fundingRateAbsPct)
   const [basisThresholdPct, setBasisThresholdPct] = useState(defaultArbitrageThresholds().basisAbsPct)
 
   const lastAlertRef = useRef<Record<string, number>>({})
+  const scanLockRef = useRef(false)
 
   useEffect(() => {
     try {
@@ -67,8 +69,11 @@ export default function ArbitragePage() {
 
   const scanOnce = async () => {
     setError("")
+    if (scanLockRef.current) return
+    scanLockRef.current = true
     const funding: FundingOpportunity[] = []
     const basis: BasisOpportunity[] = []
+    setScanning(true)
     try {
       for (const symbol of SCAN_SYMBOLS) {
         const [premiumRes, priceRes] = await Promise.all([
@@ -135,6 +140,9 @@ Spot-like: $${spotLikePrice.toFixed(2)} | Futures: $${futuresPrice.toFixed(2)}`
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Scan failed"
       setError(msg)
+    } finally {
+      setScanning(false)
+      scanLockRef.current = false
     }
   }
 
@@ -207,13 +215,15 @@ Spot-like: $${spotLikePrice.toFixed(2)} | Futures: $${futuresPrice.toFixed(2)}`
             <button
               type="button"
               className="w-full rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 hover:text-white"
+              disabled={scanning}
               onClick={() => void scanOnce()}
             >
-              Scan Now
+              {scanning ? "Scanning…" : "Scan Now"}
             </button>
             <button
               type="button"
               className={`w-full rounded-lg px-3 py-2 text-xs font-semibold ${running ? "bg-[#00FF88]/20 text-[#00FF88]" : "bg-white/5 text-white/70 hover:text-white"}`}
+              disabled={scanning}
               onClick={() => setRunning((v) => !v)}
             >
               {running ? "Running ✅ (30s)" : "Start Auto Scan (30s)"}
@@ -240,7 +250,9 @@ Spot-like: $${spotLikePrice.toFixed(2)} | Futures: $${futuresPrice.toFixed(2)}`
                 ))}
               </div>
             ) : (
-              <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/60">No funding opportunities above threshold.</div>
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/60">
+                {scanning ? "Scanning for funding opportunities…" : "No funding opportunities above threshold."}
+              </div>
             )}
           </Section>
 
@@ -260,7 +272,9 @@ Spot-like: $${spotLikePrice.toFixed(2)} | Futures: $${futuresPrice.toFixed(2)}`
                 ))}
               </div>
             ) : (
-              <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/60">No basis opportunities above threshold.</div>
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/60">
+                {scanning ? "Scanning for basis opportunities…" : "No basis opportunities above threshold."}
+              </div>
             )}
           </Section>
         </div>
@@ -268,4 +282,3 @@ Spot-like: $${spotLikePrice.toFixed(2)} | Futures: $${futuresPrice.toFixed(2)}`
     </div>
   )
 }
-

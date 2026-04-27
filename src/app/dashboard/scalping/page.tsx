@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DEFAULT_SCALP_FILTERS, SCALP_FILTER_DEFS, type ScalpFilterCategory, type ScalpFilterId, type ScalpFilterState } from "@/lib/scalpEngine"
 
 type ScalpTimeframe = "1m" | "3m" | "5m" | "15m" | "30m"
@@ -284,6 +284,10 @@ export default function ScalpingPage() {
     leaderboard: []
   })
 
+  const stateUpdatedAtRef = useRef(0)
+  const refreshSeqRef = useRef(0)
+  const refreshAbortRef = useRef<AbortController | null>(null)
+
   const tfButtons = useMemo(
     () =>
       [
@@ -364,23 +368,66 @@ export default function ScalpingPage() {
   }, [])
 
   const refreshState = useCallback(async () => {
+    refreshSeqRef.current += 1
+    const seq = refreshSeqRef.current
+    refreshAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    refreshAbortRef.current = ctrl
     setLoadingState(true)
     try {
-      const res = await fetch("/api/scalping/state", { cache: "no-store" })
-      const json = (await res.json()) as ScalpStateResponse
-      if (json?.ok && json.data) setState(json.data)
+      const res = await fetch("/api/scalping/state", { cache: "no-store", signal: ctrl.signal })
+      const json = (await res.json().catch(() => null)) as ScalpStateResponse | null
+      if (seq !== refreshSeqRef.current) return
+      if (!json?.ok || !json.data) return
+
+      const nextUpdatedAt = Number(json.data.updatedAt ?? 0)
+      if (Number.isFinite(nextUpdatedAt) && nextUpdatedAt > 0 && nextUpdatedAt < stateUpdatedAtRef.current) return
+      if (Number.isFinite(nextUpdatedAt) && nextUpdatedAt > 0) stateUpdatedAtRef.current = nextUpdatedAt
+
+      setState((prev) => {
+        const merged: ScalpStateResponse["data"] = {
+          ...prev,
+          ...json.data,
+          openTrades: Array.isArray((json.data as any).openTrades) ? json.data.openTrades : prev.openTrades,
+          leaderboard: Array.isArray((json.data as any).leaderboard) ? json.data.leaderboard : prev.leaderboard,
+          stats: (json.data as any).stats && typeof (json.data as any).stats === "object" ? json.data.stats : prev.stats,
+          paperAccount: (json.data as any).paperAccount && typeof (json.data as any).paperAccount === "object" ? json.data.paperAccount : prev.paperAccount
+        }
+        return merged
+      })
     } catch {
       return
     } finally {
-      setLoadingState(false)
+      if (seq === refreshSeqRef.current) setLoadingState(false)
     }
   }, [])
 
   useEffect(() => {
     void refreshState()
     const t = window.setInterval(() => void refreshState(), 5000)
-    return () => window.clearInterval(t)
+    return () => {
+      window.clearInterval(t)
+      refreshAbortRef.current?.abort()
+    }
   }, [refreshState])
+
+  const openTradesSorted = useMemo(() => {
+    return [...(state.openTrades ?? [])].sort((a, b) => (b.openedAt - a.openedAt) || a.id.localeCompare(b.id))
+  }, [state.openTrades])
+
+  const paperOpenPositionsSorted = useMemo(() => {
+    const rows = state.paperAccount?.openPositions ?? []
+    return [...rows].sort((a, b) => (b.openedAt - a.openedAt) || a.id.localeCompare(b.id))
+  }, [state.paperAccount?.openPositions])
+
+  const paperHistorySorted = useMemo(() => {
+    const rows = state.paperAccount?.history ?? []
+    return [...rows].sort((a, b) => (b.closedAt - a.closedAt) || a.id.localeCompare(b.id))
+  }, [state.paperAccount?.history])
+
+  const leaderboardSorted = useMemo(() => {
+    return [...(state.leaderboard ?? [])].sort((a, b) => (b.score - a.score) || a.symbol.localeCompare(b.symbol))
+  }, [state.leaderboard])
 
   const toggleCoin = (symbol: string) => {
     setSettings((s) => {
@@ -523,8 +570,8 @@ export default function ScalpingPage() {
         <div className="text-sm text-white/60">Fast trades on top 20 coins</div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-        <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-semibold text-white">Module ON/OFF</div>
@@ -886,7 +933,7 @@ export default function ScalpingPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
             <div className="mb-3 text-sm font-semibold text-white">LIVE SCALP TRADES</div>
             <div className="overflow-x-auto">
@@ -904,8 +951,8 @@ export default function ScalpingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.openTrades.length ? (
-                    state.openTrades.map((t) => (
+                  {openTradesSorted.length ? (
+                    openTradesSorted.map((t) => (
                       <tr key={t.id} className="border-t border-white/10">
                         <td className="py-2">{t.symbol}</td>
                         <td>{t.direction}</td>
@@ -965,9 +1012,9 @@ export default function ScalpingPage() {
 
               <div className="mt-4">
                 <div className="mb-2 text-xs font-semibold text-white/70">OPEN POSITIONS</div>
-                {state.paperAccount.openPositions.length ? (
+                {paperOpenPositionsSorted.length ? (
                   <div className="space-y-2">
-                    {state.paperAccount.openPositions.map((p) => (
+                    {paperOpenPositionsSorted.map((p) => (
                       <div key={p.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/70">
                         <div className="min-w-0">
                           <div className="font-mono">
@@ -1010,8 +1057,8 @@ export default function ScalpingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {state.paperAccount.history.length ? (
-                      state.paperAccount.history.map((h) => (
+                    {paperHistorySorted.length ? (
+                      paperHistorySorted.map((h) => (
                         <tr key={h.id} className="border-t border-white/10">
                           <td className="py-2 text-xs text-white/50">{fmtIst(h.closedAt)}</td>
                           <td className="py-2">{h.symbol}</td>
@@ -1095,8 +1142,8 @@ export default function ScalpingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.leaderboard.length ? (
-                    state.leaderboard.slice(0, 10).map((r, idx) => (
+                  {leaderboardSorted.length ? (
+                    leaderboardSorted.slice(0, 10).map((r, idx) => (
                       <tr key={`${r.symbol}-${idx}`} className="border-t border-white/10">
                         <td className="py-2">{idx + 1}</td>
                         <td>{r.symbol}</td>

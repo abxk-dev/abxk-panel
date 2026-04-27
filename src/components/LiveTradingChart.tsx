@@ -23,6 +23,8 @@ export function LiveTradingChart({ symbol = "BTC-USDT" }: { symbol?: string }) {
 
   const [interval, setIntervalTf] = useState<ChartInterval>("4h")
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const tfButtons = useMemo(
     () =>
@@ -111,6 +113,7 @@ export function LiveTradingChart({ symbol = "BTC-USDT" }: { symbol?: string }) {
     let mounted = true
 
     async function fetchCandles() {
+      setRefreshing(true)
       try {
         const res = await fetch(
           `/api/chart-data?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=120`,
@@ -151,8 +154,11 @@ export function LiveTradingChart({ symbol = "BTC-USDT" }: { symbol?: string }) {
 
         chartRef.current?.timeScale().fitContent()
         setLastUpdatedAt(Date.now())
+        setLoading(false)
       } catch {
         if (!mounted) return
+      } finally {
+        if (mounted) setRefreshing(false)
       }
     }
 
@@ -187,7 +193,8 @@ export function LiveTradingChart({ symbol = "BTC-USDT" }: { symbol?: string }) {
             {symbol}
           </span>
           <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace" }}>
-            {interval.toUpperCase()} · Live{lastUpdatedAt ? ` · ${new Date(lastUpdatedAt).toLocaleTimeString()}` : ""}
+            {interval.toUpperCase()} · {loading ? "Loading..." : refreshing ? "Refreshing..." : "Live"}
+            {lastUpdatedAt ? ` · ${new Date(lastUpdatedAt).toLocaleTimeString()}` : ""}
           </span>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
@@ -214,6 +221,23 @@ export function LiveTradingChart({ symbol = "BTC-USDT" }: { symbol?: string }) {
       </div>
 
       <div ref={chartContainerRef} style={{ width: "100%", height: "220px" }} />
+      {loading ? (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#888",
+            fontSize: "12px",
+            fontFamily: "monospace",
+            pointerEvents: "none"
+          }}
+        >
+          Loading chart...
+        </div>
+      ) : null}
 
       <div
         style={{

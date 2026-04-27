@@ -18,6 +18,7 @@ export function TradeHistory() {
   const [msg, setMsg] = useState<string>("")
   const [details, setDetails] = useState<string>("")
   const [minHint, setMinHint] = useState<string>("")
+  const [minLoading, setMinLoading] = useState<boolean>(false)
 
   const rows = useMemo(() => (tab === "paper" ? paper : live), [tab, paper, live])
 
@@ -122,23 +123,28 @@ export function TradeHistory() {
     setMinHint("")
     const symbol = testerSymbol.trim() || settingsSymbol
     if (!symbol) return
-    const [contracts, price] = await Promise.all([
-      fetch("/api/bingx/contracts", { cache: "no-store" }).then((r) => r.json()).catch(() => null),
-      fetch(`/api/bingx/price?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null)
-    ])
-    const rows: any[] = Array.isArray(contracts?.data?.data) ? contracts.data.data : Array.isArray(contracts?.data) ? contracts.data : []
-    const row = rows.find((x) => String(x?.symbol) === symbol)
-    const minQty = row ? Number(row.tradeMinQuantity ?? row.tradeMinQty ?? row.minQty) : undefined
-    const minUsdt = row ? Number(row.tradeMinUSDT ?? row.tradeMinUsdt ?? row.minUsdt) : undefined
-    const pRow = (price as any)?.data ?? price
-    const last = Number(pRow?.price ?? pRow?.lastPrice ?? pRow?.data?.price)
-    const priceOk = Number.isFinite(last) && last > 0 ? last : undefined
-    const minFromUsdt = minUsdt && priceOk ? minUsdt / priceOk : undefined
-    const hintParts: string[] = []
-    if (Number.isFinite(minQty)) hintParts.push(`Min qty: ${minQty}`)
-    if (Number.isFinite(minUsdt)) hintParts.push(`Min USDT: $${minUsdt}`)
-    if (minFromUsdt !== undefined && Number.isFinite(minFromUsdt)) hintParts.push(`≈ qty ${minFromUsdt.toFixed(6)} at $${priceOk?.toFixed(4)}`)
-    setMinHint(hintParts.length ? hintParts.join(" • ") : "Could not read min qty for this symbol.")
+    setMinLoading(true)
+    try {
+      const [contracts, price] = await Promise.all([
+        fetch("/api/bingx/contracts", { cache: "no-store" }).then((r) => r.json()).catch(() => null),
+        fetch(`/api/bingx/price?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null)
+      ])
+      const rows: any[] = Array.isArray(contracts?.data?.data) ? contracts.data.data : Array.isArray(contracts?.data) ? contracts.data : []
+      const row = rows.find((x) => String(x?.symbol) === symbol)
+      const minQty = row ? Number(row.tradeMinQuantity ?? row.tradeMinQty ?? row.minQty) : undefined
+      const minUsdt = row ? Number(row.tradeMinUSDT ?? row.tradeMinUsdt ?? row.minUsdt) : undefined
+      const pRow = (price as any)?.data ?? price
+      const last = Number(pRow?.price ?? pRow?.lastPrice ?? pRow?.data?.price)
+      const priceOk = Number.isFinite(last) && last > 0 ? last : undefined
+      const minFromUsdt = minUsdt && priceOk ? minUsdt / priceOk : undefined
+      const hintParts: string[] = []
+      if (Number.isFinite(minQty)) hintParts.push(`Min qty: ${minQty}`)
+      if (Number.isFinite(minUsdt)) hintParts.push(`Min USDT: $${minUsdt}`)
+      if (minFromUsdt !== undefined && Number.isFinite(minFromUsdt)) hintParts.push(`≈ qty ${minFromUsdt.toFixed(6)} at $${priceOk?.toFixed(4)}`)
+      setMinHint(hintParts.length ? hintParts.join(" • ") : "Could not read min qty for this symbol.")
+    } finally {
+      setMinLoading(false)
+    }
   }
 
   const openAndAutoClose = async () => {
@@ -242,10 +248,10 @@ export function TradeHistory() {
           </button>
           <button
             className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/5 disabled:opacity-60"
-            disabled={busy}
+            disabled={busy || minLoading}
             onClick={() => void suggestMinQty()}
           >
-            Suggest Min Qty
+            {minLoading ? "Suggesting…" : "Suggest Min Qty"}
           </button>
           <div className="flex items-center text-xs text-white/50">
             Mode: {mode.toUpperCase()} {canLive ? "" : "• not live"}

@@ -1,0 +1,508 @@
+{
+  "ok": true,
+  "data": {
+    "updatedAt": 1777320879851,
+    "settings": {
+      "enabled": true,
+      "paused": false,
+      "mode": "paper",
+      "patternRequired": true,
+      "patternMinStrength": "MODERATE",
+      "patternBlockOpposing": true,
+      "filters": {
+        "ema9_15_3m": false,
+        "rsi_15_85": false,
+        "macd_hist_flip_3m": true,
+        "bb_touch_3m": true,
+        "vwap_sr_3m": true,
+        "volume_1_5x": true,
+        "session_filter": false,
+        "wick_ratio": false,
+        "news_blackout": false,
+        "daily_loss_lock": false,
+        "blacklist_check": false
+      },
+      "paperBalanceUsd": 200,
+      "maxDailyLossUsd": 20,
+      "tp1Amount": 3,
+      "tp2Amount": 5,
+      "slAmount": 5,
+      "trailingEnabled": true,
+      "lockAtTp1": 3,
+      "trailDistance": 1,
+      "leverage": 20,
+      "marginPerTrade": 35,
+      "maxConcurrent": 5,
+      "maxPerDay": 100,
+      "timeframe": "5m",
+      "minScore": 90,
+      "enabledCoins": [
+        "BTC-USDT",
+        "ETH-USDT",
+        "BNB-USDT",
+        "XRP-USDT",
+        "ADA-USDT",
+        "DOT-USDT",
+        "MATIC-USDT",
+        "LTC-USDT",
+        "LINK-USDT",
+        "XLM-USDT",
+        "SOL-USDT",
+        "SUI-USDT",
+        "UNI-USDT",
+        "BCH-USDT",
+        "ETHFI-USDT",
+        "INJ-USDT",
+        "ETC-USDT",
+        "COMP-USDT",
+        "ONDO-USDT",
+        "DYDX-USDT",
+        "TAO-USDT"
+      ]
+    },
+    "mode": "paper",
+    "openTrades": [],
+    "stats": {
+      "trades": 15,
+      "wins": 8,
+      "losses": 7,
+      "winRate": 53.333333333333336,
+      "totalPnl": -12.82,
+      "best": {
+        "symbol": "XRP-USDT",
+        "pnlUsd": 5.5,
+        "reason": "TP2_HIT"
+      },
+      "worst": {
+        "symbol": "TAO-USDT",
+        "pnlUsd": -7.58,
+        "reason": "SL_HIT"
+      },
+      "allTime": {
+        "trades": 15,
+        "wins": 8,
+        "losses": 7,
+        "winRate": 53.333333333333336,
+        "totalPnl": -12.82
+      }
+    },
+    "paperAccount": {
+      "balance": 187.18,
+      "totalDeposited": 200,
+      "totalFeesPaid": 10.64,
+      "totalGrossPnl": -2.18,
+      "totalNetPnl": -12.82,
+      "today": {
+        "trades": 15,
+        "gross": -2.18,
+        "fees": 10.64,
+        "net": -12.82
+      },
+      "openPositions": [],
+      "history": [
+        {
+          "id": "paper2-BNB-USDT-1777271773715",
+          "symbol": "BNB-USDT",
+          "direction": "SHORT",
+          "entryPrice": 625.62,
+          "exitPrice": 620.27,
+          "grossPnlUsd": 5.99,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0.07,
+            "totalFee": 0.77
+          },
+          "netPnlUsd": 5.22,
+          "reason": "TP2_HIT",
+          "openedAt": 1777271773715,
+          "closedAt": 1777303323612
+        },
+        {
+          "id": "paper2-ADA-USDT-1777277239566",
+          "symbol": "ADA-USDT",
+          "direction": "SHORT",
+          "entryPrice": 0.2469,
+          "exitPrice": 0.2448,
+          "grossPnlUsd": 5.95,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": 5.25,
+          "reason": "TP2_HIT",
+          "openedAt": 1777277239566,
+          "closedAt": 1777303113744
+        },
+        {
+          "id": "paper2-BTC-USDT-1777270693458",
+          "symbol": "BTC-USDT",
+          "direction": "SHORT",
+          "entryPrice": 77748.5,
+          "exitPrice": 77488.9,
+          "grossPnlUsd": 2.34,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0.07,
+            "totalFee": 0.77
+          },
+          "netPnlUsd": 1.57,
+          "reason": "TRAIL_STOP",
+          "openedAt": 1777270693458,
+          "closedAt": 1777302334125
+        },
+        {
+          "id": "paper2-XRP-USDT-1777291274369",
+          "symbol": "XRP-USDT",
+          "direction": "SHORT",
+          "entryPrice": 1.412,
+          "exitPrice": 1.3995,
+          "grossPnlUsd": 6.2,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": 5.5,
+          "reason": "TP2_HIT",
+          "openedAt": 1777291274369,
+          "closedAt": 1777297660914
+        },
+        {
+          "id": "paper2-DOT-USDT-1777272014161",
+          "symbol": "DOT-USDT",
+          "direction": "SHORT",
+          "entryPrice": 1.229,
+          "exitPrice": 1.238,
+          "grossPnlUsd": -5.13,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": -5.83,
+          "reason": "SL_HIT",
+          "openedAt": 1777272014161,
+          "closedAt": 1777289020642
+        },
+        {
+          "id": "paper2-ADA-USDT-1777276334396",
+          "symbol": "ADA-USDT",
+          "direction": "SHORT",
+          "entryPrice": 0.2476,
+          "exitPrice": 0.247,
+          "grossPnlUsd": 1.7,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": 1,
+          "reason": "TRAIL_STOP",
+          "openedAt": 1777276334396,
+          "closedAt": 1777277080118
+        },
+        {
+          "id": "paper2-XLM-USDT-1777271592839",
+          "symbol": "XLM-USDT",
+          "direction": "SHORT",
+          "entryPrice": 0.16855,
+          "exitPrice": 0.16767,
+          "grossPnlUsd": 3.65,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": 2.95,
+          "reason": "TRAIL_STOP",
+          "openedAt": 1777271592839,
+          "closedAt": 1777276210656
+        },
+        {
+          "id": "paper2-DYDX-USDT-1777271113609",
+          "symbol": "DYDX-USDT",
+          "direction": "SHORT",
+          "entryPrice": 0.15511,
+          "exitPrice": 0.15392,
+          "grossPnlUsd": 5.37,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": 4.67,
+          "reason": "TP2_HIT",
+          "openedAt": 1777271113609,
+          "closedAt": 1777271500533
+        },
+        {
+          "id": "paper2-DYDX-USDT-1777266913783",
+          "symbol": "DYDX-USDT",
+          "direction": "SHORT",
+          "entryPrice": 0.15838,
+          "exitPrice": 0.15719,
+          "grossPnlUsd": 5.26,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": 4.56,
+          "reason": "TP2_HIT",
+          "openedAt": 1777266913783,
+          "closedAt": 1777267360028
+        },
+        {
+          "id": "paper2-TAO-USDT-1777266314147",
+          "symbol": "TAO-USDT",
+          "direction": "LONG",
+          "entryPrice": 254.43,
+          "exitPrice": 251.93,
+          "grossPnlUsd": -6.88,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": -7.58,
+          "reason": "SL_HIT",
+          "openedAt": 1777266314147,
+          "closedAt": 1777266941222
+        },
+        {
+          "id": "paper2-DOT-USDT-1777264336197",
+          "symbol": "DOT-USDT",
+          "direction": "LONG",
+          "entryPrice": 1.266,
+          "exitPrice": 1.256,
+          "grossPnlUsd": -5.53,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": -6.23,
+          "reason": "SL_HIT",
+          "openedAt": 1777264336197,
+          "closedAt": 1777266820033
+        },
+        {
+          "id": "paper2-BTC-USDT-1777264213601",
+          "symbol": "BTC-USDT",
+          "direction": "LONG",
+          "entryPrice": 79104.3,
+          "exitPrice": 78515.9,
+          "grossPnlUsd": -5.21,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": -5.91,
+          "reason": "SL_HIT",
+          "openedAt": 1777264213601,
+          "closedAt": 1777266760565
+        },
+        {
+          "id": "paper2-LINK-USDT-1777264393436",
+          "symbol": "LINK-USDT",
+          "direction": "LONG",
+          "entryPrice": 9.538,
+          "exitPrice": 9.466,
+          "grossPnlUsd": -5.28,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": -5.98,
+          "reason": "SL_HIT",
+          "openedAt": 1777264393436,
+          "closedAt": 1777266551891
+        },
+        {
+          "id": "paper2-UNI-USDT-1777264633971",
+          "symbol": "UNI-USDT",
+          "direction": "LONG",
+          "entryPrice": 3.337,
+          "exitPrice": 3.311,
+          "grossPnlUsd": -5.45,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": -6.15,
+          "reason": "SL_HIT",
+          "openedAt": 1777264633971,
+          "closedAt": 1777266550126
+        },
+        {
+          "id": "paper2-ONDO-USDT-1777264033753",
+          "symbol": "ONDO-USDT",
+          "direction": "LONG",
+          "entryPrice": 0.2715,
+          "exitPrice": 0.2695,
+          "grossPnlUsd": -5.16,
+          "fees": {
+            "openFee": 0.35,
+            "closeFee": 0.35,
+            "fundingFee": 0,
+            "totalFee": 0.7
+          },
+          "netPnlUsd": -5.86,
+          "reason": "SL_HIT",
+          "openedAt": 1777264033753,
+          "closedAt": 1777266220857
+        }
+      ]
+    },
+    "leaderboard": [
+      {
+        "symbol": "BCH-USDT",
+        "score": 83.33333333333334,
+        "direction": "SHORT",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 0.1387191135599302
+      },
+      {
+        "symbol": "LTC-USDT",
+        "score": 50,
+        "direction": "SHORT",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": true,
+        "volRatio": 0.265773285975193
+      },
+      {
+        "symbol": "XLM-USDT",
+        "score": 50,
+        "direction": "SHORT",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 1.1460025207218807
+      },
+      {
+        "symbol": "ETH-USDT",
+        "score": 25,
+        "direction": "LONG",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 0.5164705029364139
+      },
+      {
+        "symbol": "SOL-USDT",
+        "score": 25,
+        "direction": "SHORT",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 0.8756983774468127
+      },
+      {
+        "symbol": "SUI-USDT",
+        "score": 25,
+        "direction": "SHORT",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 0.06757983045904935
+      },
+      {
+        "symbol": "ETHFI-USDT",
+        "score": 25,
+        "direction": "SHORT",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 0.24043581955045396
+      },
+      {
+        "symbol": "COMP-USDT",
+        "score": 25,
+        "direction": "LONG",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 0.19724753057234495
+      },
+      {
+        "symbol": "ONDO-USDT",
+        "score": 25,
+        "direction": "SHORT",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 0.6238637606761941
+      },
+      {
+        "symbol": "DYDX-USDT",
+        "score": 25,
+        "direction": "SHORT",
+        "pattern": {
+          "name": "Checklist",
+          "strength": "NONE",
+          "allowed": true
+        },
+        "vwapOk": true,
+        "rsiOk": false,
+        "volRatio": 0.039264716823707684
+      }
+    ]
+  }
+}

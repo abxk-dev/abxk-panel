@@ -51,6 +51,28 @@ export const DEFAULT_SCALP_FILTERS: ScalpFilterState = SCALP_FILTER_DEFS.reduce(
   return acc
 }, {} as ScalpFilterState)
 
+export const SCALP2_FILTER_DEFS = [
+  { id: "ema9_15_3m", name: "3m EMA 9/15 Trend", category: "TREND", weight: 20, defaultOn: true },
+  { id: "rsi_15_85", name: "3m RSI 15/85", category: "MOMENTUM", weight: 20, defaultOn: true },
+  { id: "macd_hist_flip_3m", name: "3m MACD Histogram Flip", category: "MOMENTUM", weight: 20, defaultOn: true },
+  { id: "bb_touch_3m", name: "3m Bollinger Band Touch/Near", category: "VOLATILITY", weight: 15, defaultOn: true },
+  { id: "vwap_sr_3m", name: "3m VWAP Support/Resistance", category: "TREND", weight: 15, defaultOn: true },
+  { id: "volume_1_5x", name: "Volume Spike (1.5x+)", category: "VOLUME", weight: 10, defaultOn: true },
+  { id: "session_filter", name: "Session Filter (NY/London)", category: "RISK", weight: 5, defaultOn: true },
+  { id: "wick_ratio", name: "Wick/Body Ratio Filter", category: "PROTECTION", weight: 0, defaultOn: true },
+  { id: "news_blackout", name: "News Blackout (±15min)", category: "RISK", weight: 0, defaultOn: true },
+  { id: "daily_loss_lock", name: "Daily Loss Lock", category: "RISK", weight: 0, defaultOn: true },
+  { id: "blacklist_check", name: "Auto Blacklist Check", category: "RISK", weight: 0, defaultOn: true }
+] as const
+
+export type Scalp2FilterId = (typeof SCALP2_FILTER_DEFS)[number]["id"]
+export type Scalp2FilterState = Record<Scalp2FilterId, boolean>
+
+export const DEFAULT_SCALP2_FILTERS: Scalp2FilterState = SCALP2_FILTER_DEFS.reduce((acc, f) => {
+  ;(acc as any)[f.id] = f.defaultOn
+  return acc
+}, {} as Scalp2FilterState)
+
 export const BINGX_FEES = {
   maker: 0.0002,
   taker: 0.0005,
@@ -89,6 +111,31 @@ export type ScalpSettings = {
   enabledCoins: string[]
 }
 
+export type Scalp2Settings = {
+  enabled: boolean
+  paused: boolean
+  mode: ScalpMode
+  patternRequired: boolean
+  patternMinStrength: ScalpPatternMinStrength
+  patternBlockOpposing: boolean
+  filters: Scalp2FilterState
+  paperBalanceUsd: number
+  maxDailyLossUsd: number
+  tp1Amount: number
+  tp2Amount: number
+  slAmount: number
+  trailingEnabled: boolean
+  lockAtTp1: number
+  trailDistance: number
+  leverage: number
+  marginPerTrade: number
+  maxConcurrent: number
+  maxPerDay: number
+  timeframe: ScalpTimeframe
+  minScore: number
+  enabledCoins: string[]
+}
+
 export type ScalpSignal = {
   symbol: string
   direction: "LONG" | "SHORT"
@@ -101,6 +148,29 @@ export type ScalpSignal = {
   volRatio: number
   patternAllowed: boolean
   patternResult: PatternResult | null
+  topFilters: string[]
+}
+
+export type Scalp2Signal = {
+  symbol: string
+  direction: "LONG" | "SHORT"
+  score: number
+  emaFast: number
+  emaSlow: number
+  emaOk: boolean
+  rsi: number
+  rsiPrev: number
+  rsiOk: boolean
+  macdHist: number
+  macdHistPrev: number
+  macdOk: boolean
+  bbUpper: number
+  bbLower: number
+  bbOk: boolean
+  vwap: number
+  vwapOk: boolean
+  volRatio: number
+  volumeOk: boolean
   topFilters: string[]
 }
 
@@ -185,6 +255,31 @@ export const DEFAULT_SCALP_SETTINGS: ScalpSettings = {
   enabledCoins: [...SCALP_COINS]
 }
 
+export const DEFAULT_SCALP2_SETTINGS: Scalp2Settings = {
+  enabled: false,
+  paused: false,
+  mode: "paper",
+  patternRequired: false,
+  patternMinStrength: "MODERATE",
+  patternBlockOpposing: true,
+  filters: DEFAULT_SCALP2_FILTERS,
+  paperBalanceUsd: 250,
+  maxDailyLossUsd: 0,
+  tp1Amount: 3,
+  tp2Amount: 5,
+  slAmount: 5,
+  trailingEnabled: true,
+  lockAtTp1: 3,
+  trailDistance: 1,
+  leverage: 20,
+  marginPerTrade: 10,
+  maxConcurrent: 3,
+  maxPerDay: 10,
+  timeframe: "3m",
+  minScore: 50,
+  enabledCoins: [...SCALP_COINS]
+}
+
 export function settingsFromEnv(env: NodeJS.ProcessEnv): ScalpSettings {
   const timeframe = String(env.SCALPING_TIMEFRAME ?? DEFAULT_SCALP_SETTINGS.timeframe).toLowerCase()
   const tf: ScalpTimeframe = isScalpTimeframe(timeframe) ? timeframe : DEFAULT_SCALP_SETTINGS.timeframe
@@ -220,6 +315,47 @@ export function settingsFromEnv(env: NodeJS.ProcessEnv): ScalpSettings {
     maxPerDay: clampInt(env.SCALPING_MAX_PER_DAY, DEFAULT_SCALP_SETTINGS.maxPerDay, 1, 100),
     timeframe: tf,
     minScore: clampInt(env.SCALPING_MIN_SCORE, DEFAULT_SCALP_SETTINGS.minScore, 0, 100),
+    enabledCoins
+  }
+}
+
+export function settingsFromScalp2Env(env: NodeJS.ProcessEnv): Scalp2Settings {
+  const timeframe = String(env.SCALPING2_TIMEFRAME ?? DEFAULT_SCALP2_SETTINGS.timeframe).toLowerCase()
+  const tf: ScalpTimeframe = isScalpTimeframe(timeframe) ? timeframe : DEFAULT_SCALP2_SETTINGS.timeframe
+  const mode = normalizeMode(env.SCALPING2_MODE ?? DEFAULT_SCALP2_SETTINGS.mode)
+  const patternRequired = toBool(env.SCALPING2_PATTERN_REQUIRED, DEFAULT_SCALP2_SETTINGS.patternRequired)
+  const patternMinStrength = normalizePatternMinStrength(
+    env.SCALPING2_PATTERN_MIN_STRENGTH ?? DEFAULT_SCALP2_SETTINGS.patternMinStrength
+  )
+  const patternBlockOpposing = toBool(env.SCALPING2_PATTERN_BLOCK_OPPOSING, DEFAULT_SCALP2_SETTINGS.patternBlockOpposing)
+  const filters = filtersFromScalp2Env(env)
+  const coins = String(env.SCALPING2_ENABLED_COINS ?? "").trim()
+  const allowed = new Set<string>(SCALP_COINS as unknown as string[])
+  const parsedCoins = coins ? coins.split(",").map((s) => s.trim()).filter(Boolean) : []
+  const filteredCoins = parsedCoins.filter((c) => allowed.has(c))
+  const enabledCoins = filteredCoins.length ? filteredCoins : [...DEFAULT_SCALP2_SETTINGS.enabledCoins]
+  return {
+    enabled: toBool(env.SCALPING2_ENABLED, DEFAULT_SCALP2_SETTINGS.enabled),
+    paused: toBool(env.SCALPING2_PAUSED, DEFAULT_SCALP2_SETTINGS.paused),
+    mode,
+    patternRequired,
+    patternMinStrength,
+    patternBlockOpposing,
+    filters,
+    paperBalanceUsd: toNum(env.SCALPING2_PAPER_BALANCE, DEFAULT_SCALP2_SETTINGS.paperBalanceUsd),
+    maxDailyLossUsd: toNum(env.SCALPING2_MAX_DAILY_LOSS_USD, DEFAULT_SCALP2_SETTINGS.maxDailyLossUsd),
+    tp1Amount: toNum(env.SCALPING2_TP1_AMOUNT, DEFAULT_SCALP2_SETTINGS.tp1Amount),
+    tp2Amount: toNum(env.SCALPING2_TP2_AMOUNT, DEFAULT_SCALP2_SETTINGS.tp2Amount),
+    slAmount: toNum(env.SCALPING2_SL_AMOUNT, DEFAULT_SCALP2_SETTINGS.slAmount),
+    trailingEnabled: toBool(env.SCALPING2_TRAILING_ENABLED, DEFAULT_SCALP2_SETTINGS.trailingEnabled),
+    lockAtTp1: toNum(env.SCALPING2_LOCK_AT_TP1, DEFAULT_SCALP2_SETTINGS.lockAtTp1),
+    trailDistance: toNum(env.SCALPING2_TRAIL_DISTANCE, DEFAULT_SCALP2_SETTINGS.trailDistance),
+    leverage: clampInt(env.SCALPING2_LEVERAGE, DEFAULT_SCALP2_SETTINGS.leverage, 1, 50),
+    marginPerTrade: toNum(env.SCALPING2_MARGIN_PER_TRADE, DEFAULT_SCALP2_SETTINGS.marginPerTrade),
+    maxConcurrent: clampInt(env.SCALPING2_MAX_CONCURRENT, DEFAULT_SCALP2_SETTINGS.maxConcurrent, 1, 20),
+    maxPerDay: clampInt(env.SCALPING2_MAX_PER_DAY, DEFAULT_SCALP2_SETTINGS.maxPerDay, 1, 100),
+    timeframe: tf,
+    minScore: clampInt(env.SCALPING2_MIN_SCORE, DEFAULT_SCALP2_SETTINGS.minScore, 0, 100),
     enabledCoins
   }
 }
@@ -380,6 +516,105 @@ export function scoreScalpSymbol(
   }
 }
 
+function scoreScalp2Symbol(
+  candles3m: Candle[],
+  settings: Pick<Scalp2Settings, "filters">,
+  ctx: { nowMs?: number } = {}
+): Omit<Scalp2Signal, "symbol"> | null {
+  if (candles3m.length < 80) return null
+  const nowMs = ctx.nowMs ?? Date.now()
+  if (settings.filters.session_filter && !isActiveSession(nowMs)) return null
+
+  const last3 = candles3m[candles3m.length - 1]
+  if (!last3) return null
+
+  const closes3 = candles3m.map((c) => c.close)
+  const emaFast = emaLast(closes3, 9)
+  const emaSlow = emaLast(closes3, 15)
+  const emaLong = emaFast > emaSlow
+  const emaShort = emaFast < emaSlow
+
+  const rsi = rsiLast(closes3, 14)
+  const rsiPrev = rsiLast(closes3.slice(0, -1), 14)
+  const rsiWindow = rsiSeries(closes3, 14).slice(-12)
+  const rsiBounceLong = rsiPrev < 15 && rsi >= 15 && Math.min(...rsiWindow) < 15
+  const rsiRejectShort = rsiPrev > 85 && rsi <= 85 && Math.max(...rsiWindow) > 85
+
+  const macd = macdHistogram(closes3)
+  const macdFlipLong = macd.prev < 0 && macd.now > 0
+  const macdFlipShort = macd.prev > 0 && macd.now < 0
+
+  const bb = bollingerBands(closes3)
+  const bbNearPct = 0.002
+  const bbTouchLong = last3.close <= bb.lower * (1 + bbNearPct)
+  const bbTouchShort = last3.close >= bb.upper * (1 - bbNearPct)
+
+  const vwap = calculateVWAP(candles3m.slice(-60))
+  const vwapLong = last3.close >= vwap || (last3.low <= vwap && last3.close >= vwap)
+  const vwapShort = last3.close <= vwap || (last3.high >= vwap && last3.close <= vwap)
+
+  const vol20 = candles3m.slice(-21, -1).map((c) => c.volume)
+  const volAvg = average(vol20)
+  const volRatio = volAvg > 0 ? last3.volume / volAvg : 0
+  const volumeOk = volRatio > 1.5
+
+  const enabled = settings.filters
+  const weights = new Map<Scalp2FilterId, number>()
+  for (const f of SCALP2_FILTER_DEFS) weights.set(f.id, f.weight)
+  const allEnabled = (Object.entries(enabled) as Array<[Scalp2FilterId, boolean]>).filter(([, on]) => on)
+  const totalWeight = allEnabled.reduce((s, [id]) => s + (weights.get(id) ?? 0), 0)
+
+  const checks: Array<{ id: Scalp2FilterId; okLong: boolean; okShort: boolean; label: string }> = [
+    { id: "ema9_15_3m", okLong: emaLong, okShort: emaShort, label: "EMA 9/15 3m" },
+    { id: "rsi_15_85", okLong: rsiBounceLong, okShort: rsiRejectShort, label: "RSI 15/85 3m" },
+    { id: "macd_hist_flip_3m", okLong: macdFlipLong, okShort: macdFlipShort, label: "MACD Hist 3m" },
+    { id: "bb_touch_3m", okLong: bbTouchLong, okShort: bbTouchShort, label: "BB Touch 3m" },
+    { id: "vwap_sr_3m", okLong: vwapLong, okShort: vwapShort, label: "VWAP S/R 3m" },
+    { id: "volume_1_5x", okLong: volumeOk, okShort: volumeOk, label: "Volume 1.5x" }
+  ]
+
+  const passedWeightLong = checks
+    .filter((c) => enabled[c.id] && c.okLong)
+    .reduce((s, c) => s + (weights.get(c.id) ?? 0), 0)
+  const passedWeightShort = checks
+    .filter((c) => enabled[c.id] && c.okShort)
+    .reduce((s, c) => s + (weights.get(c.id) ?? 0), 0)
+
+  const scoreLong = totalWeight > 0 ? clampNum((passedWeightLong / totalWeight) * 100, 0, 100) : 0
+  const scoreShort = totalWeight > 0 ? clampNum((passedWeightShort / totalWeight) * 100, 0, 100) : 0
+  if (scoreLong <= 0 && scoreShort <= 0) return null
+  if (scoreLong === scoreShort) return null
+
+  const direction: "LONG" | "SHORT" = scoreLong > scoreShort ? "LONG" : "SHORT"
+  const score = direction === "LONG" ? scoreLong : scoreShort
+  const topFilters = checks
+    .filter((c) => enabled[c.id] && (direction === "LONG" ? c.okLong : c.okShort))
+    .map((c) => c.label)
+    .slice(0, 3)
+
+  return {
+    direction,
+    score,
+    emaFast,
+    emaSlow,
+    emaOk: direction === "LONG" ? emaLong : emaShort,
+    rsi,
+    rsiPrev,
+    rsiOk: direction === "LONG" ? rsiBounceLong : rsiRejectShort,
+    macdHist: macd.now,
+    macdHistPrev: macd.prev,
+    macdOk: direction === "LONG" ? macdFlipLong : macdFlipShort,
+    bbUpper: bb.upper,
+    bbLower: bb.lower,
+    bbOk: direction === "LONG" ? bbTouchLong : bbTouchShort,
+    vwap,
+    vwapOk: direction === "LONG" ? vwapLong : vwapShort,
+    volRatio,
+    volumeOk,
+    topFilters
+  }
+}
+
 export async function scanScalpLeaderboard(opts: {
   settings: ScalpSettings
   fetchKlines: (symbol: string, interval: ScalpTimeframe, limit: number) => Promise<Candle[]>
@@ -492,6 +727,45 @@ export async function scanScalpLeaderboard(opts: {
   const out = base.map((x) => x.signal)
   out.sort((a, b) => b.score - a.score)
   return out
+}
+
+export async function scanScalp2Leaderboard(opts: {
+  settings: Scalp2Settings
+  fetchKlines: (symbol: string, interval: ScalpTimeframe, limit: number) => Promise<Candle[]>
+}): Promise<Scalp2Signal[]> {
+  const symbols = opts.settings.enabledCoins.length ? opts.settings.enabledCoins : [...SCALP_COINS]
+  const nowMs = Date.now()
+  const out: Scalp2Signal[] = []
+  const chunks = chunkArray(symbols, 3)
+  for (const chunk of chunks) {
+    const settled = await Promise.allSettled(
+      chunk.map(async (sym) => {
+        const c3 = await opts.fetchKlines(sym, "3m", 160).catch(() => [])
+        return { symbol: sym, c3 }
+      })
+    )
+    for (const s of settled) {
+      if (s.status !== "fulfilled") continue
+      const { symbol, c3 } = s.value
+      const scored = scoreScalp2Symbol(c3, opts.settings, { nowMs })
+      if (!scored) continue
+      out.push({ symbol, ...scored })
+    }
+    await sleep(200)
+  }
+
+  out.sort((a, b) => b.score - a.score)
+  return out
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
 }
 
 export function manageScalpTrade(trade: ScalpTrade, currentPrice: number, settings: ScalpSettings): { next: ScalpTrade; close?: ScalpTrade } {
@@ -625,11 +899,37 @@ function macdConfirm(values: number[], direction: "LONG" | "SHORT"): boolean {
   return direction === "LONG" ? lastMacd > lastSig && hist > 0 : lastMacd < lastSig && hist < 0
 }
 
+function macdHistogram(values: number[]): { now: number; prev: number } {
+  if (values.length < 40) return { now: 0, prev: 0 }
+  const fast = emaSeries(values, 12)
+  const slow = emaSeries(values, 26)
+  const macdLine = fast.map((v, i) => v - (slow[i] ?? v))
+  const signalLine = emaSeries(macdLine, 9)
+  const hist = macdLine.map((m, i) => m - (signalLine[i] ?? m))
+  const now = hist[hist.length - 1] ?? 0
+  const prev = hist[hist.length - 2] ?? now
+  return { now, prev }
+}
+
 function stdDev(values: number[]): number {
   if (!values.length) return 0
   const avg = values.reduce((s, v) => s + v, 0) / values.length
   const variance = values.reduce((s, v) => s + (v - avg) * (v - avg), 0) / values.length
   return Math.sqrt(variance)
+}
+
+function bollingerBands(values: number[]): { upper: number; lower: number; mid: number } {
+  const lookback = 20
+  if (values.length < lookback) {
+    const mid = values[values.length - 1] ?? 0
+    return { upper: mid, lower: mid, mid }
+  }
+  const slice = values.slice(-lookback)
+  const mid = slice.reduce((s, v) => s + v, 0) / slice.length
+  const sd = stdDev(slice)
+  const upper = mid + 2 * sd
+  const lower = mid - 2 * sd
+  return { upper, lower, mid }
 }
 
 function bollingerSqueeze(values: number[]): boolean {
@@ -814,6 +1114,20 @@ function filtersFromEnv(env: NodeJS.ProcessEnv): ScalpFilterState {
   const out = { ...DEFAULT_SCALP_FILTERS }
   for (const k of Object.keys(out) as ScalpFilterId[]) out[k] = false
   for (const id of enabled as ScalpFilterId[]) out[id] = true
+  return out
+}
+
+function filtersFromScalp2Env(env: NodeJS.ProcessEnv): Scalp2FilterState {
+  const raw = String(env.SCALPING2_ENABLED_FILTERS ?? "").trim()
+  if (!raw) return DEFAULT_SCALP2_FILTERS
+  const allow = new Set<string>(SCALP2_FILTER_DEFS.map((d) => d.id))
+  const enabled = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s && allow.has(s))
+  const out = { ...DEFAULT_SCALP2_FILTERS }
+  for (const k of Object.keys(out) as Scalp2FilterId[]) out[k] = false
+  for (const id of enabled as Scalp2FilterId[]) out[id] = true
   return out
 }
 

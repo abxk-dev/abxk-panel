@@ -1,565 +1,872 @@
-Add a new trading module called "GRID VAULT" 
-as a completely separate section in the bot.
+Add new "SCALPING 3" module to the bot.
+Strategy: SMC + Volume only — clean and powerful.
 
 ═══════════════════════════════════════
 SIDEBAR — Add new item
 ═══════════════════════════════════════
 
-Add to sidebar navigation:
-icon: 🔲
-label: Grid Vault
-path: /dashboard/grid-vault
+Add to sidebar:
+{ icon: '⚡', label: 'Scalping 3', path: '/dashboard/scalping-3' }
 
 ═══════════════════════════════════════
-PART 1 — PAGE LAYOUT
-/app/dashboard/grid-vault/page.tsx
+PART 1 — SMC ENGINE
+/lib/scalping3/smcEngine.ts
 ═══════════════════════════════════════
 
-Page title: GRID VAULT
-Subtitle: Consistent Growth Engine
+Best timeframe for SMC + Volume scalping:
+PRIMARY:   5M  (entry trigger)
+CONFIRM:   15M (structure confirmation)
+BIAS:      1H  (overall direction)
 
-Tabs on page:
-[Overview] [Spot Grid] [Futures Grid] [Calculator] [History]
+Best sessions:
+BEST:    London/NY Overlap 13:00-16:00 UTC (18:30-21:30 IST)
+GOOD:    NY Open 13:00-17:00 UTC
+GOOD:    London Open 08:00-11:00 UTC
+AVOID:   Asian session 00:00-07:00 UTC (low volume)
+AVOID:   Weekend
 
-═══════════════════════════════════════
-PART 2 — OVERVIEW TAB
-═══════════════════════════════════════
+interface SMCData {
+  // Order Blocks
+  demandOB: OrderBlock | null    // bullish OB
+  supplyOB: OrderBlock | null    // bearish OB
+  atOBZone: boolean              // price at OB right now
+  obType: 'DEMAND' | 'SUPPLY' | 'NONE'
 
-Show 4 metric cards at top:
+  // Fair Value Gaps
+  bullishFVG: FVG | null
+  bearishFVG: FVG | null
+  atFVGZone: boolean
 
-Card 1: Starting Capital
-Card 2: Current Value (live)
-Card 3: Total Profit
-Card 4: Active Grids
+  // Break of Structure
+  bos: BOS
+  bosDirection: 'BULLISH' | 'BEARISH' | 'NONE'
+  bosConfirmed: boolean
 
-Below metrics — two panels side by side:
+  // Liquidity
+  liquidityAbove: number    // where stops are above
+  liquidityBelow: number    // where stops are below
+  sweepDetected: boolean
+  sweepType: 'HIGH' | 'LOW' | 'NONE'
 
-LEFT PANEL — Active Grids:
-┌─────────────────────────────────────┐
-│ ACTIVE GRIDS                        │
-│                                     │
-│ BTC Spot Grid                       │
-│ Range: $78,000 - $90,000           │
-│ Cycles: 12 | Profit: +$48.20      │
-│ Status: 🟢 RUNNING                  │
-│                                     │
-│ BTC Futures 3x Grid                 │
-│ Range: $78,000 - $90,000           │
-│ Cycles: 8 | Profit: +$84.60       │
-│ Status: 🟢 RUNNING                  │
-└─────────────────────────────────────┘
-
-RIGHT PANEL — Growth Chart:
-Equity curve showing capital growth
-Line chart using Recharts
-X axis: dates
-Y axis: total vault value
-
-═══════════════════════════════════════
-PART 3 — SPOT GRID TAB
-═══════════════════════════════════════
-
-// /components/gridvault/SpotGridPanel.tsx
-
-UI Layout:
-┌─────────────────────────────────────┐
-│ ⚙️ SPOT GRID SETTINGS               │
-│                                     │
-│ Symbol:        [BTC-USDT ▾]        │
-│ Capital ($):   [________] input    │
-│ Upper Price:   [________] input    │
-│ Lower Price:   [________] input    │
-│ Grid Levels:   [____] slider 2-20  │
-│ Mode:          [PAPER] [LIVE]      │
-│                                     │
-│ AUTO CALCULATE:                     │
-│ Grid interval: $2,000 (auto)       │
-│ Profit/grid:   2.38% (auto)        │
-│ Amount/level:  $166 (auto)         │
-│                                     │
-│ ESTIMATED RETURNS:                  │
-│ Per cycle:   $4.40                 │
-│ Daily (avg): $13.20                │
-│ Monthly:     $396                  │
-│                                     │
-│ [▶ START SPOT GRID] [■ STOP]       │
-└─────────────────────────────────────┘
-
-Below settings — Grid Visualization:
-Show price ladder as vertical bar:
-
-╔═══════════════╗
-║ $90,000 SELL  ║ ← green
-║ $88,800 SELL  ║ ← green  
-║ $87,600 SELL  ║ ← green
-║───────────────║
-║ $84,000 NOW ◄ ║ ← blue (current price)
-║───────────────║
-║ $82,800 BUY   ║ ← red
-║ $81,600 BUY   ║ ← red
-║ $78,000 BUY   ║ ← red
-╚═══════════════╝
-
-Each level shows:
-- Price
-- Order type (BUY/SELL)
-- Status (FILLED / PENDING / ACTIVE)
-- Profit from this level if filled
-
-// Grid calculation logic:
-
-interface SpotGridConfig {
-  symbol: string
-  capital: number
-  upperPrice: number
-  lowerPrice: number
-  gridLevels: number
-  mode: 'paper' | 'live'
+  // Overall SMC bias
+  smcBias: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
+  smcScore: number           // 0-100
+  entryValid: boolean
+  entryDirection: 'LONG' | 'SHORT' | 'NONE'
 }
 
-interface GridLevel {
-  price: number
-  type: 'BUY' | 'SELL'
-  amount: number
-  quantity: number
-  status: 'PENDING' | 'FILLED' | 'ACTIVE'
-  orderId: string | null
-  filledAt: number | null
-  profit: number
-}
+// ─── ORDER BLOCK DETECTION ───
+function detectOrderBlocks(candles: Candle[]): {
+  demand: OrderBlock | null
+  supply: OrderBlock | null
+} {
+  const demand: OrderBlock[] = []
+  const supply: OrderBlock[] = []
 
-function calculateGridLevels(config: SpotGridConfig): GridLevel[] {
-  const { upperPrice, lowerPrice, gridLevels, capital } = config
-  const interval = (upperPrice - lowerPrice) / gridLevels
-  const amountPerLevel = capital / gridLevels
-  const levels: GridLevel[] = []
+  for (let i = 2; i < candles.length - 2; i++) {
+    const c = candles[i]
+    const prev = candles[i - 1]
+    const next1 = candles[i + 1]
+    const next2 = candles[i + 2]
 
-  for (let i = 0; i <= gridLevels; i++) {
-    const price = lowerPrice + (interval * i)
-    levels.push({
-      price: Math.round(price),
-      type: 'BUY',  // will be updated based on current price
-      amount: amountPerLevel,
-      quantity: amountPerLevel / price,
-      status: 'PENDING',
-      orderId: null,
-      filledAt: null,
-      profit: 0
-    })
-  }
-  return levels
-}
+    const bodySize = Math.abs(c.close - c.open)
+    const isBearish = c.close < c.open
+    const isBullish = c.close > c.open
 
-function calculateGridStats(config: SpotGridConfig) {
-  const interval = (config.upperPrice - config.lowerPrice) / config.gridLevels
-  const profitPerGrid = interval / config.upperPrice * 100
-  const amountPerLevel = config.capital / config.gridLevels
-  const profitPerCycle = amountPerLevel * (profitPerGrid / 100)
-
-  return {
-    interval,
-    profitPerGridPercent: profitPerGrid.toFixed(3),
-    amountPerLevel: amountPerLevel.toFixed(2),
-    profitPerCycle: profitPerCycle.toFixed(4),
-    dailyProfitConservative: (profitPerCycle * 1.5).toFixed(4),
-    dailyProfitAverage: (profitPerCycle * 3.5).toFixed(4),
-    monthlyConservative: (profitPerCycle * 1.5 * 30).toFixed(2),
-    monthlyAverage: (profitPerCycle * 3.5 * 30).toFixed(2),
-  }
-}
-
-// Paper grid simulation:
-// Monitor price via WebSocket
-// When price crosses a level:
-// - Mark level as FILLED
-// - Create opposite order at next level
-// - Calculate profit
-// - Update stats
-
-async function runPaperSpotGrid(
-  config: SpotGridConfig,
-  levels: GridLevel[]
-) {
-  // Subscribe to BTC price via WebSocket
-  // On each price update:
-  const currentPrice = await getLivePrice(config.symbol)
-
-  for (const level of levels) {
-    // BUY order filled (price dropped to level)
-    if (level.type === 'BUY' &&
-        level.status === 'PENDING' &&
-        currentPrice <= level.price) {
-      level.status = 'FILLED'
-      level.filledAt = Date.now()
-
-      // Place SELL at next level up
-      const nextLevel = levels.find(l => l.price > level.price)
-      if (nextLevel) {
-        nextLevel.type = 'SELL'
-        nextLevel.status = 'ACTIVE'
+    // DEMAND Order Block:
+    // Last bearish candle before strong bullish move
+    const bullMoveAfter = next1.close > c.high && next2.close > c.high
+    if (isBearish && bullMoveAfter) {
+      const moveStrength = (next2.close - c.low) / c.low * 100
+      if (moveStrength > 0.3) {
+        demand.push({
+          high:   c.open,         // top of OB (bearish candle open)
+          low:    c.low,          // bottom with wick
+          mid:    (c.open + c.low) / 2,
+          index:  i,
+          strength: moveStrength > 1 ? 'STRONG' : 'MODERATE',
+          tested: false,
+          valid:  true,
+          timestamp: c.time
+        })
       }
-
-      await sendTelegram(`
-🔲 [SPOT GRID] BUY FILLED
-━━━━━━━━━━━━━━
-Symbol: ${config.symbol}
-Bought at: $${level.price.toLocaleString()}
-Amount: $${level.amount.toFixed(2)}
-Qty: ${level.quantity.toFixed(6)} BTC
-Next sell: $${nextLevel?.price.toLocaleString()}
-Mode: ${config.mode.toUpperCase()}
-      `)
     }
 
-    // SELL order filled (price rose to level)
-    if (level.type === 'SELL' &&
-        level.status === 'ACTIVE' &&
-        currentPrice >= level.price) {
-      const buyLevel = levels.find(
-        l => l.type === 'BUY' &&
-        l.status === 'FILLED' &&
-        l.price < level.price
-      )
-      const profit = buyLevel
-        ? (level.price - buyLevel.price) * level.quantity
-        : 0
-
-      level.status = 'FILLED'
-      level.profit = profit
-
-      // Reset buy level for next cycle
-      if (buyLevel) {
-        buyLevel.status = 'PENDING'
+    // SUPPLY Order Block:
+    // Last bullish candle before strong bearish move
+    const bearMoveAfter = next1.close < c.low && next2.close < c.low
+    if (isBullish && bearMoveAfter) {
+      const moveStrength = (c.high - next2.close) / c.high * 100
+      if (moveStrength > 0.3) {
+        supply.push({
+          high:   c.high,
+          low:    c.close,        // bottom of OB (bullish candle close)
+          mid:    (c.high + c.close) / 2,
+          index:  i,
+          strength: moveStrength > 1 ? 'STRONG' : 'MODERATE',
+          tested: false,
+          valid:  true,
+          timestamp: c.time
+        })
       }
-
-      updateGridStats({ profit, cycleComplete: true })
-
-      await sendTelegram(`
-✅ [SPOT GRID] CYCLE COMPLETE
-━━━━━━━━━━━━━━
-Bought: $${buyLevel?.price.toLocaleString()}
-Sold:   $${level.price.toLocaleString()}
-Profit: +$${profit.toFixed(4)}
-Total cycles: ${getTotalCycles()}
-Total profit: +$${getTotalGridProfit().toFixed(4)}
-Mode: ${config.mode.toUpperCase()}
-      `)
     }
   }
+
+  // Get most recent valid OBs
+  const currentPrice = candles[candles.length - 1].close
+
+  // Filter: only OBs that haven't been violated
+  const validDemand = demand.filter(ob => currentPrice > ob.low * 0.998)
+  const validSupply = supply.filter(ob => currentPrice < ob.high * 1.002)
+
+  // Get nearest relevant OB
+  const nearestDemand = validDemand
+    .filter(ob => ob.high < currentPrice)
+    .sort((a, b) => b.high - a.high)[0] || null
+
+  const nearestSupply = validSupply
+    .filter(ob => ob.low > currentPrice)
+    .sort((a, b) => a.low - b.low)[0] || null
+
+  return { demand: nearestDemand, supply: nearestSupply }
 }
 
-═══════════════════════════════════════
-PART 4 — FUTURES GRID TAB
-═══════════════════════════════════════
+// ─── FVG DETECTION ───
+function detectFVG(candles: Candle[]): {
+  bullish: FVG | null
+  bearish: FVG | null
+} {
+  const bullishFVGs: FVG[] = []
+  const bearishFVGs: FVG[] = []
+  const currentPrice = candles[candles.length - 1].close
 
-// /components/gridvault/FuturesGridPanel.tsx
+  for (let i = 1; i < candles.length - 1; i++) {
+    const c1 = candles[i - 1]
+    const c2 = candles[i]      // impulse candle
+    const c3 = candles[i + 1]
 
-UI Layout:
-┌─────────────────────────────────────┐
-│ ⚡ FUTURES GRID SETTINGS             │
-│                                     │
-│ Symbol:        [BTC-USDT ▾]        │
-│ Capital ($):   [________] input    │
-│ Leverage:      [3x] [5x] [10x]    │
-│ Position:      $300 (auto calc)    │
-│ Upper Price:   [________] input    │
-│ Lower Price:   [________] input    │
-│ Grid Levels:   [____] slider 2-20  │
-│ Direction:     [NEUTRAL ▾]         │
-│   Options: NEUTRAL / LONG / SHORT  │
-│ Mode:          [PAPER] [LIVE]      │
-│                                     │
-│ RISK DISPLAY:                       │
-│ ⚠️ Liquidation price: $56,000      │
-│ Distance to liq: -33.3%            │
-│ Status: SAFE ✅                     │
-│                                     │
-│ ESTIMATED RETURNS:                  │
-│ Per cycle (3x):  $1.32             │
-│ Daily (avg):     $3.96             │
-│ Monthly:         $118.80           │
-│                                     │
-│ [▶ START FUTURES GRID] [■ STOP]    │
-└─────────────────────────────────────┘
+    // Bullish FVG: gap between c1 high and c3 low
+    if (c1.high < c3.low && c2.close > c2.open) {
+      const gapSize = (c3.low - c1.high) / c2.close * 100
+      if (gapSize > 0.05) {
+        bullishFVGs.push({
+          top:      c3.low,
+          bottom:   c1.high,
+          mid:      (c3.low + c1.high) / 2,
+          size:     gapSize,
+          filled:   currentPrice < c1.high || currentPrice > c3.low,
+          timestamp:c2.time
+        })
+      }
+    }
 
-// Liquidation calculator:
-function calculateLiquidationPrice(
-  entryPrice: number,
-  leverage: number,
-  direction: 'LONG' | 'SHORT' | 'NEUTRAL'
-): LiquidationInfo {
-  const liqDistance = 1 / leverage
-  const liqPriceLong  = entryPrice * (1 - liqDistance)
-  const liqPriceShort = entryPrice * (1 + liqDistance)
-  const distancePercent = liqDistance * 100
+    // Bearish FVG: gap between c1 low and c3 high
+    if (c1.low > c3.high && c2.close < c2.open) {
+      const gapSize = (c1.low - c3.high) / c2.close * 100
+      if (gapSize > 0.05) {
+        bearishFVGs.push({
+          top:      c1.low,
+          bottom:   c3.high,
+          mid:      (c1.low + c3.high) / 2,
+          size:     gapSize,
+          filled:   currentPrice > c1.low || currentPrice < c3.high,
+          timestamp:c2.time
+        })
+      }
+    }
+  }
 
-  let riskLevel = 'SAFE'
-  let riskColor = 'green'
-  if (distancePercent < 15) { riskLevel = 'DANGER'; riskColor = 'red' }
-  else if (distancePercent < 25) { riskLevel = 'CAUTION'; riskColor = 'yellow' }
+  // Get nearest unfilled FVG
+  const nearestBullFVG = bullishFVGs
+    .filter(fvg => !fvg.filled && fvg.top < currentPrice)
+    .sort((a, b) => b.top - a.top)[0] || null
+
+  const nearestBearFVG = bearishFVGs
+    .filter(fvg => !fvg.filled && fvg.bottom > currentPrice)
+    .sort((a, b) => a.bottom - b.bottom)[0] || null
+
+  return { bullish: nearestBullFVG, bearish: nearestBearFVG }
+}
+
+// ─── BREAK OF STRUCTURE ───
+function detectBOS(candles: Candle[]): BOS {
+  const last30 = candles.slice(-30)
+  const current = candles[candles.length - 1]
+
+  // Find swing points
+  const swingHighs: number[] = []
+  const swingLows: number[] = []
+
+  for (let i = 2; i < last30.length - 2; i++) {
+    const c = last30[i]
+    const isSwingHigh =
+      c.high > last30[i-1].high &&
+      c.high > last30[i-2].high &&
+      c.high > last30[i+1].high &&
+      c.high > last30[i+2].high
+    const isSwingLow =
+      c.low < last30[i-1].low &&
+      c.low < last30[i-2].low &&
+      c.low < last30[i+1].low &&
+      c.low < last30[i+2].low
+
+    if (isSwingHigh) swingHighs.push(c.high)
+    if (isSwingLow)  swingLows.push(c.low)
+  }
+
+  const lastSwingHigh = swingHighs[swingHighs.length - 1]
+  const lastSwingLow  = swingLows[swingLows.length - 1]
+
+  const bullishBOS = lastSwingHigh &&
+    current.close > lastSwingHigh
+
+  const bearishBOS = lastSwingLow &&
+    current.close < lastSwingLow
 
   return {
-    liqPriceLong,
-    liqPriceShort,
-    distancePercent,
-    riskLevel,
-    riskColor,
-    message: `BTC must drop ${distancePercent.toFixed(1)}% to liquidate`
+    direction:  bullishBOS ? 'BULLISH' : bearishBOS ? 'BEARISH' : 'NONE',
+    level:      bullishBOS ? lastSwingHigh : bearishBOS ? lastSwingLow : 0,
+    confirmed:  bullishBOS || bearishBOS,
+    strength:   Math.abs(
+      current.close - (bullishBOS ? lastSwingHigh : lastSwingLow || 0)
+    ) / current.close * 100
   }
 }
 
-// Futures grid profit calculation:
-function calculateFuturesGridStats(
-  config: SpotGridConfig,
-  leverage: number
-) {
-  const baseStats = calculateGridStats(config)
+// ─── LIQUIDITY SWEEP ───
+function detectLiquiditySweep(candles: Candle[]): LiquiditySweep {
+  const last20 = candles.slice(-20)
+  const last   = candles[candles.length - 1]
+  const prev   = candles[candles.length - 2]
+
+  const recentHigh = Math.max(...last20.map(c => c.high))
+  const recentLow  = Math.min(...last20.map(c => c.low))
+
+  // Sweep of highs (bearish — longs trapped)
+  const highSweep =
+    last.high > recentHigh &&
+    last.close < recentHigh &&
+    last.close < last.open   // closed bearish after sweep
+
+  // Sweep of lows (bullish — shorts trapped)
+  const lowSweep =
+    last.low < recentLow &&
+    last.close > recentLow &&
+    last.close > last.open   // closed bullish after sweep
+
   return {
-    ...baseStats,
-    positionSize: config.capital * leverage,
-    profitPerCycle: parseFloat(baseStats.profitPerCycle) * leverage,
-    monthlyConservative: parseFloat(baseStats.monthlyConservative) * leverage,
-    monthlyAverage: parseFloat(baseStats.monthlyAverage) * leverage,
-    leverage,
-    liquidationInfo: calculateLiquidationPrice(
-      (config.upperPrice + config.lowerPrice) / 2,
-      leverage,
-      'NEUTRAL'
-    )
+    detected:    highSweep || lowSweep,
+    type:        highSweep ? 'HIGH' : lowSweep ? 'LOW' : 'NONE',
+    level:       highSweep ? recentHigh : lowSweep ? recentLow : 0,
+    liquidityAbove: recentHigh,
+    liquidityBelow: recentLow
   }
 }
 
-// Leverage comparison table (show in UI):
-// Auto-calculate for current settings:
-function getLeverageComparison(baseStats: any, capital: number) {
-  return [1, 3, 5, 10].map(lev => ({
-    leverage: `${lev}x`,
-    position: `$${capital * lev}`,
-    perCycle: `$${(parseFloat(baseStats.profitPerCycle) * lev).toFixed(4)}`,
-    monthly: `$${(parseFloat(baseStats.monthlyAverage) * lev).toFixed(2)}`,
-    liqDistance: `${(100/lev).toFixed(0)}%`,
-    risk: lev <= 3 ? 'LOW' : lev <= 5 ? 'MEDIUM' : 'HIGH'
-  }))
+// ─── MAIN SMC ANALYZER ───
+export async function analyzeSMC(
+  symbol: string,
+  timeframe: string = '5m'
+): Promise<SMCData> {
+
+  // Fetch candles for entry TF and confirmation TF
+  const [candles5m, candles15m, candles1h] = await Promise.all([
+    fetchCandles(symbol, '5m',  100),
+    fetchCandles(symbol, '15m', 50),
+    fetchCandles(symbol, '1h',  30)
+  ])
+
+  const currentPrice = candles5m[candles5m.length - 1].close
+
+  // Run all SMC detection
+  const { demand: demandOB, supply: supplyOB } = detectOrderBlocks(candles5m)
+  const { bullish: bullFVG, bearish: bearFVG }  = detectFVG(candles5m)
+  const bos     = detectBOS(candles15m)
+  const sweep   = detectLiquiditySweep(candles5m)
+
+  // 1H bias
+  const bos1h   = detectBOS(candles1h)
+  const htfBias = bos1h.direction !== 'NONE'
+    ? bos1h.direction
+    : candles1h[candles1h.length-1].close >
+      candles1h[candles1h.length-1].open
+      ? 'BULLISH' : 'BEARISH'
+
+  // Check if price is AT an OB zone
+  const atDemandOB = demandOB &&
+    currentPrice >= demandOB.low * 0.999 &&
+    currentPrice <= demandOB.high * 1.001
+
+  const atSupplyOB = supplyOB &&
+    currentPrice >= supplyOB.low * 0.999 &&
+    currentPrice <= supplyOB.high * 1.001
+
+  // Check if price is in FVG
+  const atBullFVG = bullFVG &&
+    currentPrice >= bullFVG.bottom &&
+    currentPrice <= bullFVG.top
+
+  const atBearFVG = bearFVG &&
+    currentPrice >= bearFVG.bottom &&
+    currentPrice <= bearFVG.top
+
+  // SMC Score calculation
+  let smcScore = 0
+  let entryDirection: 'LONG' | 'SHORT' | 'NONE' = 'NONE'
+
+  // LONG setup scoring
+  let longScore = 0
+  if (atDemandOB)                              longScore += 35
+  if (atBullFVG)                               longScore += 20
+  if (bos.direction === 'BULLISH')             longScore += 25
+  if (sweep.type === 'LOW')                    longScore += 20
+  if (htfBias === 'BULLISH')                   longScore += 15
+  if (demandOB?.strength === 'STRONG')         longScore += 10
+
+  // SHORT setup scoring
+  let shortScore = 0
+  if (atSupplyOB)                              shortScore += 35
+  if (atBearFVG)                               shortScore += 20
+  if (bos.direction === 'BEARISH')             shortScore += 25
+  if (sweep.type === 'HIGH')                   shortScore += 20
+  if (htfBias === 'BEARISH')                   shortScore += 15
+  if (supplyOB?.strength === 'STRONG')         shortScore += 10
+
+  if (longScore > shortScore && longScore >= 55) {
+    smcScore       = longScore
+    entryDirection = 'LONG'
+  } else if (shortScore > longScore && shortScore >= 55) {
+    smcScore       = shortScore
+    entryDirection = 'SHORT'
+  }
+
+  return {
+    demandOB,
+    supplyOB,
+    atOBZone:       !!(atDemandOB || atSupplyOB),
+    obType:         atDemandOB ? 'DEMAND' : atSupplyOB ? 'SUPPLY' : 'NONE',
+    bullishFVG:     bullFVG,
+    bearishFVG:     bearFVG,
+    atFVGZone:      !!(atBullFVG || atBearFVG),
+    bos,
+    bosDirection:   bos.direction,
+    bosConfirmed:   bos.confirmed,
+    liquidityAbove: sweep.liquidityAbove,
+    liquidityBelow: sweep.liquidityBelow,
+    sweepDetected:  sweep.detected,
+    sweepType:      sweep.type,
+    smcBias:        entryDirection === 'LONG' ? 'BULLISH' :
+                    entryDirection === 'SHORT' ? 'BEARISH' : 'NEUTRAL',
+    smcScore,
+    entryValid:     smcScore >= 55,
+    entryDirection
+  }
 }
 
-Show as table in UI:
-Lev | Position | Per Cycle | Monthly | Liq Distance | Risk
-1x  | $100     | $0.44     | $46     | -100% (never)| LOW
-3x  | $300     | $1.32     | $138    | -33%         | LOW
-5x  | $500     | $2.20     | $231    | -20%         | MEDIUM
-10x | $1000    | $4.40     | $462    | -10%         | HIGH
-
 ═══════════════════════════════════════
-PART 5 — CALCULATOR TAB
+PART 2 — VOLUME ENGINE
+/lib/scalping3/volumeEngine.ts
 ═══════════════════════════════════════
 
-// /components/gridvault/GridCalculator.tsx
+interface VolumeData {
+  currentVolume:  number
+  avgVolume:      number
+  volumeRatio:    number
+  volumeScore:    number
+  isSurge:        boolean
+  surgeLevel:     'NORMAL' | 'ELEVATED' | 'SURGE' | 'EXTREME'
+  volumeTrend:    'INCREASING' | 'DECREASING' | 'STABLE'
+  deltaVolume:    number      // buy vol - sell vol (approximated)
+  deltaPositive:  boolean     // more buyers than sellers
+  confirmed:      boolean     // volume confirms SMC direction
+}
 
-Interactive profit calculator:
+export function analyzeVolume(
+  candles: Candle[],
+  smcDirection: 'LONG' | 'SHORT' | 'NONE'
+): VolumeData {
 
-INPUTS:
-- Capital: $[100] slider $10-$10,000
-- Leverage: [1x] [3x] [5x] [10x]
-- Daily cycles: [1] [2] [3] [4] [5] [6]
-- Compound: [ON/OFF]
-- Months: [1] [3] [6] [12]
+  const last    = candles[candles.length - 1]
+  const prev3   = candles.slice(-4, -1)
+  const last20  = candles.slice(-21, -1)
 
-OUTPUTS (update live as inputs change):
+  // Average volume (20 candles)
+  const avgVolume = last20.reduce(
+    (s, c) => s + parseFloat(c.volume.toString()), 0
+  ) / 20
 
-WITHOUT COMPOUNDING:
-Month 1:  $100 → $160  (+$60)
-Month 3:  $100 → $280  (+$180)
-Month 6:  $100 → $460  (+$360)
-Month 12: $100 → $820  (+$720)
+  const currentVolume = parseFloat(last.volume.toString())
+  const volumeRatio   = currentVolume / avgVolume
 
-WITH COMPOUNDING:
-Month 1:  $100 → $160   (+$60)
-Month 3:  $100 → $410   (+$310)
-Month 6:  $100 → $1,680 (+$1,580)
-Month 12: $100 → $28,000(+$27,900)
+  // Volume surge level
+  const surgeLevel: VolumeData['surgeLevel'] =
+    volumeRatio >= 5   ? 'EXTREME'  :
+    volumeRatio >= 3   ? 'SURGE'    :
+    volumeRatio >= 1.5 ? 'ELEVATED' : 'NORMAL'
 
-Show as line chart:
-- Blue line: without compounding
-- Green line: with compounding
-- X axis: months
-- Y axis: capital value
+  // Volume trend (last 3 candles increasing?)
+  const volTrend = prev3.map(c => parseFloat(c.volume.toString()))
+  const volumeTrend: VolumeData['volumeTrend'] =
+    volTrend[2] > volTrend[1] && volTrend[1] > volTrend[0]
+      ? 'INCREASING'
+      : volTrend[2] < volTrend[1] && volTrend[1] < volTrend[0]
+        ? 'DECREASING'
+        : 'STABLE'
 
-Also show:
-Daily profit: $2.00
-Weekly:       $14.00
-Monthly:      $60.00
-Break even:   immediate (grid always earns)
+  // Delta volume approximation
+  // Bull candle = buy volume dominant
+  // Bear candle = sell volume dominant
+  const isBullCandle = last.close > last.open
+  const bodyPercent  = Math.abs(last.close - last.open) / (last.high - last.low)
+  const deltaVolume  = isBullCandle
+    ? currentVolume * bodyPercent
+    : -currentVolume * bodyPercent
 
-// Compound calculation:
-function calculateCompoundGrowth(
-  capital: number,
-  monthlyReturnPercent: number,
-  months: number,
-  compound: boolean
-): GrowthData[] {
-  const results: GrowthData[] = []
-  let current = capital
+  const deltaPositive = deltaVolume > 0
 
-  for (let m = 1; m <= months; m++) {
-    if (compound) {
-      current = current * (1 + monthlyReturnPercent / 100)
+  // Volume confirms SMC direction?
+  const confirmed =
+    volumeRatio >= 1.5 &&
+    (smcDirection === 'LONG'  ? deltaPositive  : true) &&
+    (smcDirection === 'SHORT' ? !deltaPositive : true)
+
+  // Volume score
+  const volumeScore =
+    (volumeRatio >= 5   ? 40 :
+     volumeRatio >= 3   ? 30 :
+     volumeRatio >= 2   ? 20 :
+     volumeRatio >= 1.5 ? 10 : 0) +
+    (volumeTrend === 'INCREASING' ? 15 : 0) +
+    (confirmed ? 20 : 0) +
+    (surgeLevel !== 'NORMAL' ? 10 : 0)
+
+  return {
+    currentVolume,
+    avgVolume,
+    volumeRatio,
+    volumeScore,
+    isSurge:       volumeRatio >= 1.5,
+    surgeLevel,
+    volumeTrend,
+    deltaVolume,
+    deltaPositive,
+    confirmed
+  }
+}
+
+═══════════════════════════════════════
+PART 3 — SESSION & TIME FILTER
+/lib/scalping3/sessionFilter.ts
+═══════════════════════════════════════
+
+interface SessionData {
+  currentSession:  string
+  sessionScore:    number
+  isOptimal:       boolean
+  allowTrade:      boolean
+  nextOptimalTime: string
+  reason:          string
+}
+
+const SESSIONS = {
+  LONDON_NY_OVERLAP: {
+    name:       'London/NY Overlap',
+    utcStart:   13,
+    utcEnd:     16,
+    istStart:   '18:30',
+    istEnd:     '21:30',
+    score:      30,
+    optimal:    true,
+    description:'BEST — Maximum liquidity + volatility'
+  },
+  NEW_YORK: {
+    name:       'New York',
+    utcStart:   13,
+    utcEnd:     21,
+    istStart:   '18:30',
+    istEnd:     '02:30+1',
+    score:      20,
+    optimal:    true,
+    description:'GOOD — High volume US session'
+  },
+  LONDON: {
+    name:       'London',
+    utcStart:   8,
+    utcEnd:     13,
+    istStart:   '13:30',
+    istEnd:     '18:30',
+    score:      15,
+    optimal:    true,
+    description:'GOOD — European session'
+  },
+  ASIAN: {
+    name:       'Asian',
+    utcStart:   0,
+    utcEnd:     8,
+    istStart:   '05:30',
+    istEnd:     '13:30',
+    score:      0,
+    optimal:    false,
+    description:'AVOID — Low volume, choppy'
+  }
+}
+
+export function checkSession(
+  settings: Scalping3Settings
+): SessionData {
+
+  const now     = new Date()
+  const utcHour = now.getUTCHours()
+  const utcMin  = now.getUTCMinutes()
+  const utcTime = utcHour + utcMin / 60
+
+  // Determine current session
+  let currentSession = 'DEAD_HOURS'
+  let sessionScore   = 0
+  let isOptimal      = false
+  let allowTrade     = false
+
+  // London/NY Overlap (BEST)
+  if (utcTime >= 13 && utcTime < 16) {
+    currentSession = 'LONDON_NY_OVERLAP'
+    sessionScore   = 30
+    isOptimal      = true
+    allowTrade     = settings.allowLondonNY
+  }
+  // NY Only
+  else if (utcTime >= 16 && utcTime < 21) {
+    currentSession = 'NEW_YORK'
+    sessionScore   = 20
+    isOptimal      = true
+    allowTrade     = settings.allowNY
+  }
+  // London Only
+  else if (utcTime >= 8 && utcTime < 13) {
+    currentSession = 'LONDON'
+    sessionScore   = 15
+    isOptimal      = true
+    allowTrade     = settings.allowLondon
+  }
+  // Asian
+  else if (utcTime >= 0 && utcTime < 8) {
+    currentSession = 'ASIAN'
+    sessionScore   = 0
+    isOptimal      = false
+    allowTrade     = settings.allowAsian  // default OFF
+  }
+
+  // Calculate next optimal time
+  let nextOptimalTime = ''
+  if (!isOptimal || !allowTrade) {
+    const hoursToLondon = utcHour < 8  ? 8 - utcHour  : 32 - utcHour
+    const hoursToNY     = utcHour < 13 ? 13 - utcHour : 37 - utcHour
+    const hoursToNext   = Math.min(hoursToLondon, hoursToNY)
+    const nextTime      = new Date(now.getTime() + hoursToNext * 3600000)
+    const istOffset     = 5.5 * 3600000
+    const nextIST       = new Date(nextTime.getTime() + istOffset)
+    nextOptimalTime     = `${nextIST.getUTCHours()}:${String(nextIST.getUTCMinutes()).padStart(2,'0')} IST`
+  }
+
+  return {
+    currentSession,
+    sessionScore,
+    isOptimal,
+    allowTrade,
+    nextOptimalTime,
+    reason: allowTrade
+      ? `${currentSession.replace(/_/g,' ')} — trading allowed`
+      : `${currentSession.replace(/_/g,' ')} — waiting for ${nextOptimalTime}`
+  }
+}
+
+═══════════════════════════════════════
+PART 4 — MAIN STRATEGY ENGINE
+/lib/scalping3/strategy.ts
+═══════════════════════════════════════
+
+export async function runScalping3(
+  settings: Scalping3Settings
+): Promise<Scalping3Signal | null> {
+
+  // GATE 1: Session check
+  const session = checkSession(settings)
+  if (!session.allowTrade) {
+    console.log(`[S3] Session blocked: ${session.reason}`)
+    return null
+  }
+
+  // GATE 2: Scan enabled symbols
+  const results: Scalping3Signal[] = []
+
+  for (const symbol of settings.enabledSymbols) {
+
+    // Run SMC analysis
+    const smc = await analyzeSMC(symbol, settings.timeframe)
+
+    // GATE 3: SMC must be valid
+    if (!smc.entryValid) {
+      console.log(`[S3] ${symbol} SMC invalid (score ${smc.smcScore})`)
+      continue
+    }
+
+    // Run Volume analysis
+    const candles = await fetchCandles(symbol, settings.timeframe, 50)
+    const volume  = analyzeVolume(candles, smc.entryDirection)
+
+    // GATE 4: Volume must confirm
+    if (!volume.isSurge) {
+      console.log(`[S3] ${symbol} Volume not surging (${volume.volumeRatio}x)`)
+      continue
+    }
+
+    if (!volume.confirmed) {
+      console.log(`[S3] ${symbol} Volume not confirming direction`)
+      continue
+    }
+
+    // BOTH conditions met — calculate trade
+    const currentPrice = candles[candles.length - 1].close
+    const atr          = calculateATR(candles, 14)
+
+    // TP/SL based on SMC structure
+    let tpPrice: number
+    let slPrice: number
+
+    if (smc.entryDirection === 'LONG') {
+      // SL: below demand OB or recent swing low
+      slPrice = smc.demandOB
+        ? smc.demandOB.low * 0.998
+        : currentPrice - atr * 1.5
+
+      // TP: at supply OB or recent swing high
+      tpPrice = smc.supplyOB
+        ? smc.supplyOB.low * 0.999
+        : currentPrice + atr * 2.5
     } else {
-      current = capital + (capital * monthlyReturnPercent / 100 * m)
+      // SL: above supply OB
+      slPrice = smc.supplyOB
+        ? smc.supplyOB.high * 1.002
+        : currentPrice + atr * 1.5
+
+      // TP: at demand OB
+      tpPrice = smc.demandOB
+        ? smc.demandOB.high * 1.001
+        : currentPrice - atr * 2.5
     }
+
+    const slDistance = Math.abs(currentPrice - slPrice)
+    const tpDistance = Math.abs(tpPrice - currentPrice)
+    const rr         = tpDistance / slDistance
+
+    // Minimum RR check
+    if (rr < settings.minRR) {
+      console.log(`[S3] ${symbol} RR too low: ${rr.toFixed(2)}`)
+      continue
+    }
+
+    // Combined score
+    const totalScore = smc.smcScore + volume.volumeScore + session.sessionScore
+
     results.push({
-      month: m,
-      value: parseFloat(current.toFixed(2)),
-      profit: parseFloat((current - capital).toFixed(2)),
-      returnPercent: parseFloat(((current - capital) / capital * 100).toFixed(1))
+      symbol,
+      direction:      smc.entryDirection,
+      entryPrice:     currentPrice,
+      tpPrice,
+      slPrice,
+      rr:             parseFloat(rr.toFixed(2)),
+      smcScore:       smc.smcScore,
+      volumeScore:    volume.volumeScore,
+      sessionScore:   session.sessionScore,
+      totalScore,
+      smcData:        smc,
+      volumeData:     volume,
+      sessionData:    session,
+      timestamp:      Date.now()
     })
   }
-  return results
+
+  if (results.length === 0) return null
+
+  // Return highest scoring signal
+  return results.sort((a, b) => b.totalScore - a.totalScore)[0]
 }
 
 ═══════════════════════════════════════
-PART 6 — HISTORY TAB
+PART 5 — SETTINGS UI
+/app/dashboard/scalping-3/page.tsx
 ═══════════════════════════════════════
 
-Show table of all completed grid cycles:
+Page title: ⚡ SCALPING 3
+Subtitle: SMC + Volume Strategy
 
-Columns:
-Time | Type | Buy Price | Sell Price | Profit | Cumulative
+SETTINGS PANEL:
 
-Row example:
-14:32 | SPOT  | $82,800 | $84,800 | +$4.40  | +$48.40
-12:15 | FUT3x | $83,200 | $84,800 | +$3.96  | +$44.00
+┌─────────────────────────────────────┐
+│ STRATEGY ENGINE                     │
+│ Status: [ON ●] [OFF]               │
+│ Mode:   [PAPER] [LIVE] [MIRROR]    │
+├─────────────────────────────────────┤
+│ TIMEFRAME                           │
+│ Entry:   [1M] [3M] [●5M] [15M]    │
+│ Confirm: [●15M] [1H]               │
+│ Bias:    [●1H] [4H]                │
+├─────────────────────────────────────┤
+│ SMC SETTINGS                        │
+│ Min SMC score:    [55] slider       │
+│ Require OB:       [ON ✅]          │
+│ Require FVG:      [OFF]            │
+│ Require BOS:      [ON ✅]          │
+│ Require Sweep:    [OFF]            │
+│ HTF bias align:   [ON ✅]          │
+├─────────────────────────────────────┤
+│ VOLUME SETTINGS                     │
+│ Min volume ratio: [1.5]x           │
+│ Require surge:    [ON ✅]          │
+│ Min volume score: [25]             │
+│ Volume trend:     [INCREASING]     │
+├─────────────────────────────────────┤
+│ SESSION FILTER                      │
+│ London/NY Overlap [ON ✅] BEST     │
+│ New York          [ON ✅] GOOD     │
+│ London            [ON ✅] GOOD     │
+│ Asian             [OFF ❌] AVOID   │
+│                                     │
+│ Current session: NY OVERLAP ✅     │
+│ IST time now: 19:45                │
+│ Next optimal: NOW ✅               │
+├─────────────────────────────────────┤
+│ TRADE SETTINGS                      │
+│ Margin ($):   [20] input           │
+│ Leverage:     [10]x slider         │
+│ Min RR:       [1.5] input          │
+│ Max trades/day: [5]                │
+│ Max concurrent: [2]                │
+├─────────────────────────────────────┤
+│ TP/SL METHOD                        │
+│ ● SMC Structure (auto from OB/FVG) │
+│ ○ Fixed % from entry               │
+│ ○ ATR based                        │
+├─────────────────────────────────────┤
+│ TRAILING STOP                       │
+│ Enable: [ON ✅]                    │
+│ Activate at: [40]% of TP           │
+│ Distance: [0.5]% ATR               │
+├─────────────────────────────────────┤
+│ SYMBOLS (select to enable)          │
+│ ✅ BTC  ✅ ETH  ✅ SOL  ✅ BNB    │
+│ ✅ ARB  ✅ LINK ✅ INJ  ❌ DOGE   │
+│ [Select All] [Top 10] [Custom]     │
+└─────────────────────────────────────┘
 
-Stats above table:
-Total cycles: 24
-Total profit: +$132.40
-Best cycle: +$8.20
-Avg cycle: +$5.52
-Win rate: 100% (grid always profits on cycle)
+[SAVE SETTINGS]
 
 ═══════════════════════════════════════
-PART 7 — TELEGRAM NOTIFICATIONS
+PART 6 — LIVE SIGNAL DISPLAY
 ═══════════════════════════════════════
 
-On grid start:
-🔲 GRID VAULT STARTED
+LIVE SMC ANALYSIS panel:
+
+┌─────────────────────────────────────┐
+│ LIVE ANALYSIS — BTC-USDT           │
+├──────────────┬──────────────────────┤
+│ SMC          │                      │
+│ OB Zone:     │ DEMAND ✅ $83,200   │
+│ FVG:         │ Bullish $83,100     │
+│ BOS:         │ BULLISH ✅           │
+│ Sweep:       │ LOW swept ✅         │
+│ HTF Bias:    │ BULLISH (1H) ✅      │
+│ SMC Score:   │ 80/100               │
+├──────────────┼──────────────────────┤
+│ VOLUME       │                      │
+│ Ratio:       │ 3.2x avg ✅          │
+│ Surge:       │ SURGE ✅             │
+│ Trend:       │ INCREASING ✅        │
+│ Delta:       │ BUYERS ✅            │
+│ Vol Score:   │ 45/100               │
+├──────────────┼──────────────────────┤
+│ SESSION      │                      │
+│ Current:     │ NY OVERLAP ✅        │
+│ IST Time:    │ 19:45                │
+│ Score:       │ +30                  │
+├──────────────┼──────────────────────┤
+│ TOTAL SCORE  │ 155/230              │
+│ SIGNAL:      │ ✅ LONG VALID        │
+│ Entry:       │ $83,450              │
+│ TP:          │ $85,200 (+2.1%)      │
+│ SL:          │ $83,000 (-0.54%)     │
+│ RR:          │ 1:3.8 🔥             │
+└──────────────┴──────────────────────┘
+
+═══════════════════════════════════════
+PART 7 — TELEGRAM MESSAGES
+═══════════════════════════════════════
+
+On signal found:
+⚡ SCALPING 3 SIGNAL
 ━━━━━━━━━━━━━━
-Type: Futures 3x
-Symbol: BTC-USDT
-Capital: $100
-Position: $300
-Range: $78,000 - $90,000
-Levels: 6
-Mode: PAPER
+📊 BTC-USDT LONG
+Strategy: SMC + Volume
 ━━━━━━━━━━━━━━
-Per cycle profit: $1.32
-Daily estimate: $3.96
-Monthly estimate: $118.80
-Liq price: $56,000 (-33%)
-Risk: LOW ✅
+🏦 SMC Analysis:
+OB Zone: DEMAND at $83,200 ✅
+BOS: Bullish confirmed ✅
+Sweep: Low swept ✅
+SMC Score: 80/100
 
-On cycle complete:
-✅ GRID CYCLE COMPLETE
-━━━━━━━━━━━━━━
-BTC Futures 3x
-Buy: $82,800 → Sell: $85,200
-Gross profit: +$1.32
-Total cycles: 8
-Total profit: +$10.56
-Capital: $100 → $110.56
+📊 Volume Analysis:
+Ratio: 3.2x average ✅
+Surge: ACTIVE ✅
+Delta: Buyers dominant ✅
+Vol Score: 45/100
 
-Hourly update (if active):
-📊 GRID HOURLY UPDATE
+🕐 Session: NY Overlap ✅
 ━━━━━━━━━━━━━━
-BTC: $84,250
-Grid: ACTIVE ✅
-Cycles today: 3
-Today profit: +$3.96
-Total profit: +$18.40
-Nearest buy: $82,800
-Nearest sell: $85,200
+💵 Entry:  $83,450
+🎯 TP:     $85,200 (+2.1%)
+🛑 SL:     $83,000 (-0.54%)
+📊 RR:     1:3.8 🔥
+💰 Margin: $20 | 10x
+━━━━━━━━━━━━━━
+Placing trade in 15 seconds...
+[CANCEL: /skip_s3]
 
-Daily summary (11 PM):
-📊 GRID DAILY REPORT
-━━━━━━━━━━━━━━
-Date: DD/MM/YYYY
-Cycles: 4
-Daily profit: +$5.28
-Total profit: +$24.00
-Capital: $100 → $124.00 (+24%)
-Est monthly: $118.80
-
-On liquidation warning:
-🚨 GRID VAULT WARNING
-━━━━━━━━━━━━━━
-BTC price approaching danger zone
-Current: $70,000
-Liq price: $56,000
-Distance: -20% remaining
-Action: Consider reducing leverage
+On no signal:
+⚡ S3 SCAN — NO SETUP
+Session: NY Overlap ✅
+Scanned: 8 symbols
+SMC valid: 2 (BTC, ETH)
+Volume confirmed: 0
+Reason: Volume not surging
+Next scan: 5 min
 
 ═══════════════════════════════════════
-PART 8 — STATE MANAGEMENT
-/lib/gridVaultState.ts
+PART 8 — SCHEDULE
 ═══════════════════════════════════════
 
-interface GridVaultState {
-  spotGrids: SpotGrid[]
-  futuresGrids: FuturesGrid[]
-  totalCapital: number
-  totalProfit: number
-  totalCycles: number
-  startDate: number
-  profitHistory: ProfitEntry[]
-  settings: GridVaultSettings
-}
+In scheduledJobs.ts:
 
-Save to localStorage: 'grid_vault_state'
-Update on every cycle complete
-Persist across sessions
+// Scalping 3 — runs every 5 minutes
+setInterval(async () => {
+  const settings = getScalping3Settings()
+  if (!settings.enabled) return
 
-═══════════════════════════════════════
-PART 9 — AUTO PRICE SUGGESTION
-═══════════════════════════════════════
-
-When user opens Grid Vault:
-Auto-fetch current BTC price
-Auto-suggest grid range:
-
-async function suggestGridRange(symbol: string) {
-  const price = await getLivePrice(symbol)
-  const candles = await fetchCandles(symbol, '1d', 30)
-
-  // Recent 30-day high and low
-  const high30 = Math.max(...candles.map((c: any) => c.high))
-  const low30  = Math.min(...candles.map((c: any) => c.low))
-
-  // Suggested range: recent range expanded 5%
-  const suggestedUpper = Math.round(high30 * 1.05)
-  const suggestedLower = Math.round(low30  * 0.95)
-
-  return {
-    currentPrice: price,
-    suggestedUpper,
-    suggestedLower,
-    suggestedLevels: 6,
-    rangePercent: ((suggestedUpper - suggestedLower) / price * 100).toFixed(1),
-    message: `Based on 30-day price range`
+  const signal = await runScalping3(settings)
+  if (signal) {
+    await executeScalping3Trade(signal, settings)
   }
-}
-
-Show in UI:
-💡 Suggested range based on 30-day history:
-Upper: $90,000 | Lower: $78,000
-Range: 14.3% | [Apply Suggestion]
+}, 5 * 60 * 1000)  // every 5 minutes
 
 ═══════════════════════════════════════
-PART 10 — ENV VARIABLES
+PART 9 — ENV VARIABLES
 ═══════════════════════════════════════
 
 Add to .env.local:
-GRID_VAULT_ENABLED=true
-GRID_DEFAULT_SYMBOL=BTC-USDT
-GRID_DEFAULT_LEVERAGE=3
-GRID_DEFAULT_LEVELS=6
-GRID_TELEGRAM_UPDATES=true
-GRID_HOURLY_UPDATES=true
+SCALPING3_ENABLED=false
+SCALPING3_MODE=paper
+SCALPING3_TIMEFRAME=5m
+SCALPING3_MIN_SMC_SCORE=55
+SCALPING3_MIN_VOLUME_RATIO=1.5
+SCALPING3_MARGIN=20
+SCALPING3_LEVERAGE=10
+SCALPING3_MIN_RR=1.5
+SCALPING3_MAX_TRADES=5

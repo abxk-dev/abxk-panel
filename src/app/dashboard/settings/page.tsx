@@ -13,21 +13,76 @@ type FormValues = {
   secretKey: string
 }
 
+type VisualEffectsSettings = {
+  matrixBackground: boolean
+  floatingBitcoin: boolean
+  dataStreams: boolean
+  hackedScreen: boolean
+  glitchText: boolean
+  intensity: "LOW" | "MED" | "HIGH"
+}
+
+const VISUAL_KEY = "visual_effects_settings"
+
 export default function SettingsPage() {
   const settings = useBotStore((s) => s.settings)
   const setSettings = useBotStore((s) => s.setSettings)
   const [validation, setValidation] = useState<{ ok: boolean; message: string } | null>(null)
+  const [saving, setSaving] = useState(false)
   const { logo, botName, tagline, updateBranding } = useBranding()
   const [draftLogo, setDraftLogo] = useState<string | null>(logo)
   const [draftName, setDraftName] = useState<string>(botName)
   const [draftTagline, setDraftTagline] = useState<string>(tagline)
   const [brandingSaved, setBrandingSaved] = useState<string | null>(null)
+  const [visualSaved, setVisualSaved] = useState<string | null>(null)
+  const [visual, setVisual] = useState<VisualEffectsSettings>({
+    matrixBackground: true,
+    floatingBitcoin: true,
+    dataStreams: true,
+    hackedScreen: true,
+    glitchText: true,
+    intensity: "MED"
+  })
 
   useEffect(() => {
     setDraftLogo(logo)
     setDraftName(botName)
     setDraftTagline(tagline)
   }, [logo, botName, tagline])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const raw = window.localStorage.getItem(VISUAL_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Partial<VisualEffectsSettings>
+      const intensity: VisualEffectsSettings["intensity"] =
+        parsed.intensity === "LOW" || parsed.intensity === "HIGH" || parsed.intensity === "MED" ? parsed.intensity : "MED"
+      setVisual({
+        matrixBackground: Boolean(parsed.matrixBackground ?? true),
+        floatingBitcoin: Boolean(parsed.floatingBitcoin ?? true),
+        dataStreams: Boolean(parsed.dataStreams ?? true),
+        hackedScreen: Boolean(parsed.hackedScreen ?? true),
+        glitchText: Boolean(parsed.glitchText ?? true),
+        intensity
+      })
+    } catch {
+      return
+    }
+  }, [])
+
+  const updateVisual = (patch: Partial<VisualEffectsSettings>) => {
+    setVisual((cur) => {
+      const next = { ...cur, ...patch }
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(VISUAL_KEY, JSON.stringify(next))
+        window.dispatchEvent(new Event(VISUAL_KEY))
+      }
+      setVisualSaved("Saved")
+      window.setTimeout(() => setVisualSaved(null), 1500)
+      return next
+    })
+  }
 
   const defaults = useMemo<FormValues>(
     () => ({
@@ -42,26 +97,31 @@ export default function SettingsPage() {
   const mode = watch("mode")
 
   const onSubmit = handleSubmit(async (values) => {
-    setSettings({ mode: values.mode })
+    setSaving(true)
+    try {
+      setSettings({ mode: values.mode })
 
-    if (values.apiKey.trim() && values.secretKey.trim()) {
-      try {
-        const res = await fetch("/api/bingx/validateKeys", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apiKey: values.apiKey.trim(), secretKey: values.secretKey.trim() })
-        })
-        if (!res.ok) {
-          const text = await res.text()
-          setValidation({ ok: false, message: text })
-          return
+      if (values.apiKey.trim() && values.secretKey.trim()) {
+        try {
+          const res = await fetch("/api/bingx/validateKeys", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ apiKey: values.apiKey.trim(), secretKey: values.secretKey.trim() })
+          })
+          if (!res.ok) {
+            const text = await res.text()
+            setValidation({ ok: false, message: text })
+            return
+          }
+          setValidation({ ok: true, message: "Keys validated successfully (not stored)" })
+        } catch (e) {
+          setValidation({ ok: false, message: e instanceof Error ? e.message : "Validation failed" })
         }
-        setValidation({ ok: true, message: "Keys validated successfully (not stored)" })
-      } catch (e) {
-        setValidation({ ok: false, message: e instanceof Error ? e.message : "Validation failed" })
+      } else {
+        setValidation({ ok: true, message: "Mode saved" })
       }
-    } else {
-      setValidation({ ok: true, message: "Mode saved" })
+    } finally {
+      setSaving(false)
     }
   })
 
@@ -457,9 +517,38 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <div className="lg:col-span-2 rounded-xl border border-white/10 bg-black/20 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-sm font-semibold text-white">Visual Effects</div>
+            {visualSaved ? <div className="text-xs text-emerald-400">{visualSaved}</div> : null}
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Toggle label="Matrix Background" checked={visual.matrixBackground} onChange={(v) => updateVisual({ matrixBackground: v })} />
+            <Toggle label="Floating Bitcoin" checked={visual.floatingBitcoin} onChange={(v) => updateVisual({ floatingBitcoin: v })} />
+            <Toggle label="Data Streams" checked={visual.dataStreams} onChange={(v) => updateVisual({ dataStreams: v })} />
+            <Toggle label='"HACKED" Screen' checked={visual.hackedScreen} onChange={(v) => updateVisual({ hackedScreen: v })} />
+            <Toggle label="Glitch Text" checked={visual.glitchText} onChange={(v) => updateVisual({ glitchText: v })} />
+            <Field label="Effect Intensity">
+              <select
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                value={visual.intensity}
+                onChange={(e) => updateVisual({ intensity: e.target.value as VisualEffectsSettings["intensity"] })}
+              >
+                <option value="LOW">LOW</option>
+                <option value="MED">MED</option>
+                <option value="HIGH">HIGH</option>
+              </select>
+            </Field>
+          </div>
+        </div>
+
         <div className="lg:col-span-2 flex items-center gap-3">
-          <button className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-black hover:bg-brand/90" type="submit">
-            Save
+          <button
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-black hover:bg-brand/90 disabled:opacity-60"
+            type="submit"
+            disabled={saving}
+          >
+            {saving ? "Saving…" : "Save"}
           </button>
           <div className="text-xs text-white/50">
             BINGX_API_KEY and BINGX_SECRET_KEY must be set for live requests.

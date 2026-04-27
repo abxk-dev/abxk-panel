@@ -14,6 +14,11 @@ const nav: CyberNavItemModel[] = [
   { href: "/dashboard/risk-compounding", label: "Risk & Compounding", icon: "◈" },
   { href: "/dashboard/trades", label: "Trades", icon: "⟠" },
   { href: "/dashboard/scalping", label: "⚡ Scalping", icon: "⚡" },
+  { href: "/dashboard/scalping2", label: "⚡ Scalping 2", icon: "⚡" },
+  { href: "/dashboard/scalping-3", label: "⚡ Scalping 3", icon: "⚡" },
+  { href: "/dashboard/pump-alert", label: "🚀 Pump Alert", icon: "🚀" },
+  { href: "/dashboard/pump-alert-2", label: "🚨 Pump Alert 2", icon: "🚨" },
+  { href: "/dashboard/pump-alert-history", label: "📚 Pump History", icon: "📚" },
   { href: "/dashboard/grid-vault", label: "Grid Vault", icon: "🔲" },
   { href: "/dashboard/journal", label: "Trade Journal", icon: "≋" },
   { href: "/dashboard/backtester", label: "Backtester", icon: "⧉" },
@@ -30,6 +35,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { symbol: "SOL", price: null, change: 0 }
   ])
   const lastPriceRef = useRef<Record<string, number>>({})
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+    const original = console.error
+    console.error = (...args: any[]) => {
+      const first = args[0]
+      if (typeof first === "string" && first.includes("Support for defaultProps will be removed from function components")) {
+        const maybeName = args[1]
+        if (maybeName === "XAxis" || maybeName === "YAxis" || first.includes("XAxis") || first.includes("YAxis")) return
+      }
+      original(...args)
+    }
+    return () => {
+      console.error = original
+    }
+  }, [])
 
   useEffect(() => {
     const k = "abxk_boot_done"
@@ -118,15 +139,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <CyberTicker prices={prices} />
           <CyberHeader />
           <div className="mx-auto max-w-7xl px-4 py-6">
-            <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-              <aside className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+              <aside className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-3">
                 <nav className="flex flex-col gap-1">
                   {nav.map((item) => (
                     <CyberNavItem key={item.href} item={item} />
                   ))}
                 </nav>
               </aside>
-              <main className="rounded-xl border border-white/10 bg-black/20 p-5">{children}</main>
+              <main className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-5">{children}</main>
             </div>
           </div>
         </div>

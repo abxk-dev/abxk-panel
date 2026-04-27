@@ -88,6 +88,7 @@ export default function AlertsPage() {
   const [history, setHistory] = useState<AlertTrigger[]>([])
   const [running, setRunning] = useState(false)
   const [error, setError] = useState("")
+  const [tickLoading, setTickLoading] = useState(false)
 
   const [symbol, setSymbol] = useState("BTC-USDT")
   const [condition, setCondition] = useState<PriceAlert["condition"]>("ABOVE")
@@ -95,12 +96,57 @@ export default function AlertsPage() {
   const [message, setMessage] = useState("Key level")
   const [recurring, setRecurring] = useState(false)
 
+  const [contracts, setContracts] = useState<Array<{ symbol: string; asset?: string; currency?: string }>>([])
+  const [contractsLoading, setContractsLoading] = useState(false)
+  const [symbolQuery, setSymbolQuery] = useState("")
+
   const lastPriceRef = useRef<Record<string, number>>({})
+  const tickLockRef = useRef(false)
 
   useEffect(() => {
     setAlerts(loadAlerts())
     setHistory(loadHistory())
   }, [])
+
+  useEffect(() => {
+    let mounted = true
+    setContractsLoading(true)
+    fetch("/api/bingx/contracts", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json: any) => {
+        if (!mounted) return
+        const rows = Array.isArray(json?.data?.data) ? json.data.data : Array.isArray(json?.data) ? json.data : []
+        const allowedCurrency = new Set(["USDT", "USDC", "USD"])
+        const candidates: Array<{ symbol: string; asset?: string; currency?: string; status: number; apiStateOpen: string }> = rows.map(
+          (c: any) => ({
+            symbol: String(c?.symbol ?? "").trim(),
+            asset: c?.asset ? String(c.asset) : undefined,
+            currency: c?.currency ? String(c.currency) : undefined,
+            status: Number(c?.status ?? 0),
+            apiStateOpen: String(c?.apiStateOpen ?? "").toLowerCase()
+          })
+        )
+        const list: Array<{ symbol: string; asset?: string; currency?: string }> = candidates
+          .filter((c) => c.symbol && c.symbol.includes("-") && !c.symbol.includes("_"))
+          .filter((c) => c.status === 1 && c.apiStateOpen === "true")
+          .filter((c) => allowedCurrency.has(String(c.currency ?? "").toUpperCase()))
+          .map((c) => ({ symbol: c.symbol.toUpperCase(), asset: c.asset, currency: c.currency }))
+          .sort((a, b) => a.symbol.localeCompare(b.symbol))
+        setContracts(list)
+        if (list.length && !list.some((x) => x.symbol === symbol)) setSymbol(list[0]!.symbol)
+      })
+      .catch(() => {
+        if (!mounted) return
+        setContracts([])
+      })
+      .finally(() => {
+        if (!mounted) return
+        setContractsLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [symbol])
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_ALERTS, JSON.stringify(alerts))
@@ -113,7 +159,15 @@ export default function AlertsPage() {
   const symbols = useMemo(() => Array.from(new Set(alerts.map((a) => a.symbol))), [alerts])
 
   const addPriceAlert = () => {
+    setError("")
     if (!symbol.trim()) return
+    if (contracts.length) {
+      const ok = contracts.some((c) => c.symbol === symbol.trim().toUpperCase())
+      if (!ok) {
+        setError("Symbol must be a USD-M perpetual futures contract (from the list).")
+        return
+      }
+    }
     const p = clampNumber(price, 0, 1_000_000_000)
     if (p <= 0) return
     const a: PriceAlert = {
@@ -141,6 +195,9 @@ Note: ${a.message || "—"}`
 
   const tick = async () => {
     setError("")
+    if (tickLockRef.current) return
+    tickLockRef.current = true
+    setTickLoading(true)
     try {
       const prices: Record<string, number> = {}
       for (const sym of symbols) {
@@ -177,6 +234,9 @@ ${tr.message}`
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Tick failed"
       setError(msg)
+    } finally {
+      setTickLoading(false)
+      tickLockRef.current = false
     }
   }
 
@@ -207,16 +267,38 @@ ${tr.message}`
         <div className="text-sm text-white/60">Price alerts are live; indicator/pattern/PnL alerts can be added next.</div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-        <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
           <Section title="NEW PRICE ALERT">
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/60">
+              Symbols here are restricted to futures contracts (USD-M Perp).
+            </div>
             <label className="block">
               <div className="mb-1 text-xs text-white/50">Symbol</div>
-              <input
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/80"
-                value={symbol}
-                onChange={(e) => setSymbol(e.target.value)}
-              />
+              <div className="space-y-2">
+                <input
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/80"
+                  placeholder={contractsLoading ? "Loading futures symbols..." : "Search (e.g., BTC, ETH, SOL)"}
+                  value={symbolQuery}
+                  onChange={(e) => setSymbolQuery(e.target.value)}
+                />
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/80"
+                  value={symbol}
+                  onChange={(e) => setSymbol(e.target.value)}
+                >
+                  {(symbolQuery.trim()
+                    ? contracts.filter((c) => c.symbol.toUpperCase().includes(symbolQuery.trim().toUpperCase()))
+                    : contracts
+                  )
+                    .slice(0, 500)
+                    .map((c) => (
+                      <option key={c.symbol} value={c.symbol}>
+                        {c.symbol}
+                      </option>
+                    ))}
+                </select>
+              </div>
             </label>
             <label className="block">
               <div className="mb-1 text-xs text-white/50">Condition</div>
@@ -264,22 +346,24 @@ ${tr.message}`
             <button
               type="button"
               className="w-full rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 hover:text-white"
+              disabled={tickLoading}
               onClick={() => void tick()}
             >
-              Check Now
+              {tickLoading ? "Checking…" : "Check Now"}
             </button>
             <button
               type="button"
               className={`w-full rounded-lg px-3 py-2 text-xs font-semibold ${running ? "bg-[#00FF88]/20 text-[#00FF88]" : "bg-white/5 text-white/70 hover:text-white"}`}
+              disabled={tickLoading}
               onClick={() => setRunning((v) => !v)}
             >
-              {running ? "Running ✅ (5s)" : "Start (5s)"}
+              {tickLoading ? "Checking…" : running ? "Running ✅ (5s)" : "Start (5s)"}
             </button>
             {error ? <div className="text-xs text-red-400">{error}</div> : null}
           </Section>
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <Section title={`ACTIVE ALERTS (${alerts.length})`}>
             {alerts.length ? (
               <div className="space-y-2">
@@ -338,4 +422,3 @@ ${tr.message}`
     </div>
   )
 }
-

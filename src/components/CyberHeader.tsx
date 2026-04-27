@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useBotStore } from "@/store/botStore"
 import { MusicPlayer } from "@/components/MusicPlayer"
+import { GlitchText } from "@/components/effects/GlitchText"
 
 type HeaderHealth = {
   apiLatencyMs?: number
@@ -16,6 +17,7 @@ export function CyberHeader() {
 
   const [health, setHealth] = useState<HeaderHealth>({})
   const [toggling, setToggling] = useState(false)
+  const [toggleIntent, setToggleIntent] = useState<"PAUSE" | "RESUME" | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -130,11 +132,10 @@ export function CyberHeader() {
               fontWeight: 700,
               color: "var(--neon-green)",
               textShadow: "var(--glow-green)",
-              letterSpacing: 3,
-              animation: "flicker 8s infinite"
+              letterSpacing: 3
             }}
           >
-            ABXK<span style={{ color: "#fff" }}>-</span>BOT
+            <GlitchText text="ABXK-BOT" fontSize={18} color="#00FF88" glitchInterval={4000} />
             <span style={{ animation: "blink 1s infinite", marginLeft: 2 }}>█</span>
           </div>
           <div style={{ fontFamily: "var(--font-cyber)", fontSize: 10, color: "#00FF8860", letterSpacing: 2 }}>
@@ -189,8 +190,10 @@ export function CyberHeader() {
         <BotToggleButton
           paused={paused}
           toggling={toggling}
+          intent={toggleIntent}
           onToggle={async (nextPaused) => {
             setToggling(true)
+            setToggleIntent(nextPaused ? "PAUSE" : "RESUME")
             try {
               if (nextPaused) {
                 await fetch("/api/bot/pause", { method: "POST" }).catch(() => undefined)
@@ -203,6 +206,7 @@ export function CyberHeader() {
               }
             } finally {
               setToggling(false)
+              setToggleIntent(null)
             }
           }}
         />
@@ -212,15 +216,17 @@ export function CyberHeader() {
 }
 
 function CyberClock() {
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState<number | null>(null)
   useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now()), 1_000)
+    const tick = () => setNow(Date.now())
+    tick()
+    const t = window.setInterval(tick, 1_000)
     return () => window.clearInterval(t)
   }, [])
-  const d = new Date(now)
-  const hh = String(d.getUTCHours()).padStart(2, "0")
-  const mm = String(d.getUTCMinutes()).padStart(2, "0")
-  const ss = String(d.getUTCSeconds()).padStart(2, "0")
+  const d = now === null ? null : new Date(now)
+  const hh = d ? String(d.getUTCHours()).padStart(2, "0") : "--"
+  const mm = d ? String(d.getUTCMinutes()).padStart(2, "0") : "--"
+  const ss = d ? String(d.getUTCSeconds()).padStart(2, "0") : "--"
   return (
     <div
       style={{
@@ -248,6 +254,7 @@ function CyberClock() {
 function BotToggleButton(props: {
   paused: boolean
   toggling: boolean
+  intent?: "PAUSE" | "RESUME" | null
   onToggle: (paused: boolean) => Promise<void>
 }) {
   return (
@@ -270,8 +277,7 @@ function BotToggleButton(props: {
         opacity: props.toggling ? 0.6 : 1
       }}
     >
-      {props.paused ? "▶ RESUME" : "⏸ PAUSE"}
+      {props.toggling ? (props.intent === "RESUME" ? "▶ RESUMING…" : "⏸ PAUSING…") : props.paused ? "▶ RESUME" : "⏸ PAUSE"}
     </button>
   )
 }
-

@@ -60,6 +60,7 @@ export function SpotGridPanel() {
 
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
   const [suggestLoading, setSuggestLoading] = useState(false)
+  const [startLoading, setStartLoading] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -81,16 +82,18 @@ export function SpotGridPanel() {
   }, [symbol])
 
   const start = async () => {
-    if (!settings.enabled) return
-    if (mode === "live") {
-      return
-    }
-    const p = price ?? (await fetchLivePrice(symbol).catch(() => 0))
-    if (!p || p <= 0) return
-    const grid = startSpotGrid(config, p)
-    if (!grid) return
-    if (!settings.telegramUpdates) return
-    const msg = `🔲 GRID VAULT STARTED
+    setStartLoading(true)
+    try {
+      if (!settings.enabled) return
+      if (mode === "live") {
+        return
+      }
+      const p = price ?? (await fetchLivePrice(symbol).catch(() => 0))
+      if (!p || p <= 0) return
+      const grid = startSpotGrid(config, p)
+      if (!grid) return
+      if (!settings.telegramUpdates) return
+      const msg = `🔲 GRID VAULT STARTED
 ━━━━━━━━━━━━━━
 Type: Spot Grid
 Symbol: ${config.symbol}
@@ -102,7 +105,10 @@ Mode: ${config.mode.toUpperCase()}
 Per cycle profit: $${stats.profitPerCycle.toFixed(2)}
 Daily estimate: $${(stats.dailyProfitAverage).toFixed(2)}
 Monthly estimate: $${(stats.monthlyAverage).toFixed(2)}`
-    await sendTelegramMessage(msg)
+      await sendTelegramMessage(msg)
+    } finally {
+      setStartLoading(false)
+    }
   }
 
   const stop = () => {
@@ -184,9 +190,9 @@ Monthly estimate: $${(stats.monthlyAverage).toFixed(2)}`
                 settings.enabled && !modeDisabled ? "bg-[#00FF88]/20 text-[#00FF88]" : "bg-white/5 text-white/40"
               }`}
               onClick={() => void start()}
-              disabled={!settings.enabled || modeDisabled}
+              disabled={!settings.enabled || modeDisabled || startLoading}
             >
-              ▶ START SPOT GRID
+              {startLoading ? "Starting…" : "▶ START SPOT GRID"}
             </button>
             <button
               type="button"
@@ -387,4 +393,3 @@ async function sendTelegramMessage(message: string) {
     body: JSON.stringify({ message })
   }).catch(() => null)
 }
-

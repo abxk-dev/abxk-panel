@@ -131,6 +131,8 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<FfEvent[]>([])
   const [impactFilter, setImpactFilter] = useState<Impact>("High")
   const [error, setError] = useState("")
+  const [eventsLoading, setEventsLoading] = useState(true)
+  const [eventsRefreshing, setEventsRefreshing] = useState(false)
   const [settings, setSettings] = useState<AutoPauseSettings>(() => ({
     enabled: false,
     beforeMin: 15,
@@ -153,6 +155,7 @@ export default function CalendarPage() {
 
   const refresh = async () => {
     setError("")
+    setEventsRefreshing(true)
     try {
       const res = await fetch("/api/news/ff", { cache: "no-store" })
       const json = (await res.json()) as any
@@ -162,6 +165,9 @@ export default function CalendarPage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Fetch failed"
       setError(msg)
+    } finally {
+      setEventsRefreshing(false)
+      setEventsLoading(false)
     }
   }
 
@@ -244,7 +250,9 @@ export default function CalendarPage() {
       <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
         <div className="space-y-6">
           <Section title="NEXT HIGH IMPACT">
-            {nextHigh ? (
+            {eventsLoading ? (
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/60">Loading upcoming events…</div>
+            ) : nextHigh ? (
               <div className="rounded-lg border border-white/10 bg-black/30 p-3">
                 <div className="text-sm font-semibold text-white">{nextHigh.e.title ?? "—"}</div>
                 <div className="mt-1 text-xs text-white/60">
@@ -332,9 +340,10 @@ export default function CalendarPage() {
             <button
               type="button"
               className="w-full rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 hover:text-white"
+              disabled={eventsRefreshing}
               onClick={() => void refresh()}
             >
-              Refresh Now
+              {eventsRefreshing ? "Refreshing…" : "Refresh Now"}
             </button>
             {error ? <div className="text-xs text-red-400">{error}</div> : null}
           </Section>
@@ -342,7 +351,9 @@ export default function CalendarPage() {
 
         <div className="space-y-6">
           <Section title={`EVENTS (${filtered.length})`}>
-            {filtered.length ? (
+            {eventsLoading ? (
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/60">Loading events…</div>
+            ) : filtered.length ? (
               <div className="space-y-2">
                 {filtered.slice(0, 80).map((x, idx) => {
                   const imp = x.impact

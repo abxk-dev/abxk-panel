@@ -185,6 +185,7 @@ function NumberInput(props: {
 
 export default function BreakoutPage() {
   const [running, setRunning] = useState(false)
+  const [scanLoading, setScanLoading] = useState(false)
   const [mode, setMode] = useState<ExecutionMode>(DEFAULT_BREAKOUT_SETTINGS.mode)
   const [timeframe, setTimeframe] = useState<Timeframe>(DEFAULT_BREAKOUT_SETTINGS.timeframe)
   const [coinsMode, setCoinsMode] = useState<"ALL" | "ONE">("ALL")
@@ -205,6 +206,7 @@ export default function BreakoutPage() {
   const [falseBreakouts, setFalseBreakouts] = useState<number>(0)
   const [confirmedBreakouts, setConfirmedBreakouts] = useState<number>(0)
 
+  const scanLockRef = useRef(false)
   const settingsRef = useRef({
     consolidationCandles,
     maxRangePct,
@@ -252,6 +254,10 @@ export default function BreakoutPage() {
   }, [confirmedBreakouts, falseBreakouts, trades])
 
   const runScanOnce = async () => {
+    if (scanLockRef.current) return
+    scanLockRef.current = true
+    setScanLoading(true)
+    try {
     const s = settingsRef.current
     const lookback = clampInt(s.consolidationCandles, 3, 200)
     const limit = Math.max(lookback + 5, 60)
@@ -381,6 +387,10 @@ export default function BreakoutPage() {
       })
       return next
     })
+    } finally {
+      setScanLoading(false)
+      scanLockRef.current = false
+    }
   }
 
   const runScanOnceRef = useRef(runScanOnce)
@@ -429,6 +439,7 @@ export default function BreakoutPage() {
                 className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${
                   running ? "bg-white/5 text-white/60 hover:text-white" : "bg-[#00FF88]/20 text-[#00FF88]"
                 }`}
+                disabled={running}
                 onClick={() => setRunning(true)}
               >
                 Start Hunting
@@ -444,8 +455,8 @@ export default function BreakoutPage() {
               </button>
             </div>
             <div className="text-xs text-white/50">
-              Status: {running ? "HUNTING" : "IDLE"} • Watching: {Object.values(snapshots).filter((s) => s.watching).length} • Open trades:{" "}
-              {stats.open}
+              Status: {scanLoading ? "SCANNING…" : running ? "HUNTING" : "IDLE"} • Watching:{" "}
+              {Object.values(snapshots).filter((s) => s.watching).length} • Open trades: {stats.open}
             </div>
           </Section>
 

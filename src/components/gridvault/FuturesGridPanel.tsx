@@ -79,6 +79,7 @@ export function FuturesGridPanel() {
 
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
   const [suggestLoading, setSuggestLoading] = useState(false)
+  const [startLoading, setStartLoading] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -100,17 +101,19 @@ export function FuturesGridPanel() {
   }, [symbol])
 
   const start = async () => {
-    if (!settings.enabled) return
-    if (mode === "live") {
-      return
-    }
-    const p = price ?? (await fetchLivePrice(symbol).catch(() => 0))
-    if (!p || p <= 0) return
-    const grid = startFuturesGrid(config, p)
-    if (!grid) return
-    if (!settings.telegramUpdates) return
+    setStartLoading(true)
+    try {
+      if (!settings.enabled) return
+      if (mode === "live") {
+        return
+      }
+      const p = price ?? (await fetchLivePrice(symbol).catch(() => 0))
+      if (!p || p <= 0) return
+      const grid = startFuturesGrid(config, p)
+      if (!grid) return
+      if (!settings.telegramUpdates) return
 
-    const msg = `🔲 GRID VAULT STARTED
+      const msg = `🔲 GRID VAULT STARTED
 ━━━━━━━━━━━━━━
 Type: Futures ${config.leverage}x
 Symbol: ${config.symbol}
@@ -125,7 +128,10 @@ Daily estimate: $${(futStats.dailyProfitAverage).toFixed(2)}
 Monthly estimate: $${(futStats.monthlyAverage).toFixed(2)}
 Liq price: $${Math.round(liq.liqPriceLong).toLocaleString()} (-${liq.distancePercent.toFixed(1)}%)
 Risk: ${liq.riskLevel} ✅`
-    await sendTelegramMessage(msg)
+      await sendTelegramMessage(msg)
+    } finally {
+      setStartLoading(false)
+    }
   }
 
   const stop = () => {
@@ -232,9 +238,9 @@ Risk: ${liq.riskLevel} ✅`
                 settings.enabled && !modeDisabled ? "bg-[#00FF88]/20 text-[#00FF88]" : "bg-white/5 text-white/40"
               }`}
               onClick={() => void start()}
-              disabled={!settings.enabled || modeDisabled}
+              disabled={!settings.enabled || modeDisabled || startLoading}
             >
-              ▶ START FUTURES GRID
+              {startLoading ? "Starting…" : "▶ START FUTURES GRID"}
             </button>
             <button
               type="button"
@@ -475,4 +481,3 @@ async function sendTelegramMessage(message: string) {
     body: JSON.stringify({ message })
   }).catch(() => null)
 }
-

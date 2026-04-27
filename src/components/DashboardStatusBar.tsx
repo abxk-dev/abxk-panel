@@ -138,7 +138,7 @@ export function DashboardStatusBar() {
               }
             }}
           >
-            {botStatus === "PAUSED" ? "Bot paused" : "Bot running"}
+            {toggling ? "Updating…" : botStatus === "PAUSED" ? "Bot paused" : "Bot running"}
           </button>
           <button
             className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white/80 hover:bg-white/10 disabled:opacity-50"
@@ -166,7 +166,7 @@ export function DashboardStatusBar() {
             }}
             type="button"
           >
-            Refresh
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
           {pausedText ? <div className="text-white/80">{pausedText}</div> : null}
         </div>

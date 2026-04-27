@@ -149,6 +149,8 @@ export default function SignalsPage() {
   const [settings, setSettings] = useState<SignalSettings>(() => defaultSettings())
   const [queue, setQueue] = useState<IncomingSignal[]>([])
   const [error, setError] = useState<string>("")
+  const [queueLoading, setQueueLoading] = useState(true)
+  const [queueRefreshing, setQueueRefreshing] = useState(false)
 
   const [manualSymbol, setManualSymbol] = useState("BTC-USDT")
   const [manualDir, setManualDir] = useState<SignalDirection>("LONG")
@@ -168,6 +170,7 @@ export default function SignalsPage() {
   }, [])
 
   const pullServerQueue = async () => {
+    setQueueRefreshing(true)
     try {
       const res = await fetch("/api/signals/queue", { cache: "no-store" })
       const json = (await res.json()) as any
@@ -176,6 +179,9 @@ export default function SignalsPage() {
       if (arr.length) setQueue((prev) => mergeQueue(prev, arr))
     } catch {
       return
+    } finally {
+      setQueueRefreshing(false)
+      setQueueLoading(false)
     }
   }
 
@@ -313,8 +319,8 @@ Reason: ${sig.reason}`
         <div className="text-sm text-white/60">Aggregate signals and optionally auto-execute by confidence</div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-        <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
           <Section title="ACTIVE SOURCES">
             <div className="space-y-2">
               {(Object.keys(settings.sources) as SignalSource[]).map((k) => (
@@ -383,7 +389,7 @@ Reason: ${sig.reason}`
               onClick={() => void pullServerQueue()}
               disabled={!settings.sources.TRADINGVIEW}
             >
-              Pull TradingView Webhook Signals
+              {queueRefreshing ? "Pulling..." : "Pull TradingView Webhook Signals"}
             </button>
             {error ? <div className="text-xs text-red-400">{error}</div> : null}
           </Section>
@@ -459,8 +465,8 @@ Reason: ${sig.reason}`
           </Section>
         </div>
 
-        <div className="space-y-6">
-          <Section title={`INCOMING SIGNALS (${incoming.length})`}>
+        <div className="min-w-0 space-y-6">
+          <Section title={`INCOMING SIGNALS (${incoming.length})${queueLoading ? " • Loading..." : ""}`}>
             {incoming.length ? (
               <div className="space-y-3">
                 {incoming.slice(0, 30).map((s) => (
@@ -504,7 +510,7 @@ Reason: ${sig.reason}`
               </div>
             ) : (
               <div className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-white/60">
-                No incoming signals yet. Use the fetch buttons or enable manual signals.
+                {queueLoading ? "Loading..." : "No incoming signals yet. Use the fetch buttons or enable manual signals."}
               </div>
             )}
           </Section>

@@ -1,4 +1,3 @@
-import WebSocket from "ws"
 import cron from "node-cron"
 import zlib from "zlib"
 import { bingxRequest } from "@/lib/bingx"
@@ -156,14 +155,25 @@ function startWs(symbol = "BTC-USDT") {
   r.ws = ws
   const dataType = `${symbol}@ticker`
 
-  ws.on("open", () => {
+  let retryScheduled = false
+  const scheduleRetry = () => {
+    if (retryScheduled) return
+    retryScheduled = true
+    r.wsRetries = 0
+    setState({ wsConnected: false })
+    r.wsRetries = Math.min(10, (r.wsRetries ?? 0) + 1)
+    const delay = Math.min(30_000, 1500 * r.wsRetries)
+    setTimeout(() => startWs(symbol), delay)
+  }
+
+  ws.addEventListener("open", () => {
     r.wsRetries = 0
     setState({ wsConnected: true })
     ws.send(JSON.stringify({ id: `health-${Date.now()}`, reqType: "sub", dataType }))
   })
 
-  ws.on("message", (data: WebSocket.RawData) => {
-    const text = decodeWsPayload(data)
+  ws.addEventListener("message", (ev: MessageEvent) => {
+    const text = decodeWsPayload(ev.data)
     if (!text) return
     if (text === "Ping") {
       ws.send("Pong")
@@ -172,22 +182,24 @@ function startWs(symbol = "BTC-USDT") {
     setState({ wsConnected: true, lastWsMessageAt: Date.now() })
   })
 
-  const scheduleRetry = () => {
-    setState({ wsConnected: false })
-    r.wsRetries = Math.min(10, (r.wsRetries ?? 0) + 1)
-    const delay = Math.min(30_000, 1500 * r.wsRetries)
-    setTimeout(() => startWs(symbol), delay)
-  }
-
-  ws.on("close", scheduleRetry)
-  ws.on("error", scheduleRetry)
+  ws.addEventListener("close", scheduleRetry)
+  ws.addEventListener("error", scheduleRetry)
 }
 
-function decodeWsPayload(data: WebSocket.RawData): string {
+function decodeWsPayload(data: unknown): string {
   try {
-    const buf = typeof data === "string" ? Buffer.from(data, "utf8") : Buffer.isBuffer(data) ? data : Buffer.from(data as any)
+    const buf =
+      typeof data === "string"
+        ? Buffer.from(data, "utf8")
+        : data instanceof ArrayBuffer
+          ? Buffer.from(data)
+          : ArrayBuffer.isView(data)
+            ? Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+            : Buffer.isBuffer(data)
+              ? data
+              : Buffer.from(data as any)
     if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
-      return zlib.gunzipSync(buf).toString("utf8")
+      return zlib.gunzipSync(buf as any).toString("utf8")
     }
     const asText = buf.toString("utf8")
     if (asText === "Ping") return asText
